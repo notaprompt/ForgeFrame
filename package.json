@@ -7,9 +7,13 @@
   ],
   "scripts": {
     "build": "npm run build --workspaces",
-    "dev": "npm run dev --workspaces --if-present"
+    "dev": "npm run dev --workspaces --if-present",
+    "test": "vitest run"
   },
   "engines": {
     "node": ">=20.0.0"
+  },
+  "devDependencies": {
+    "vitest": "^4.0.18"
   }
 }
