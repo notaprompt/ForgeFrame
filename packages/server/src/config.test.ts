@@ -29,7 +29,7 @@ describe('loadConfig', () => {
 
     expect(cfg.dbPath).toContain('.forgeframe');
     expect(cfg.dbPath).toContain('memory.db');
-    expect(cfg.sessionId).toBeTruthy();
+    expect(cfg.sessionId).toBeUndefined();
     expect(cfg.decayOnStartup).toBe(true);
     expect(cfg.provenancePath).toContain('provenance.jsonl');
     expect(cfg.serverName).toBe('forgeframe-memory');

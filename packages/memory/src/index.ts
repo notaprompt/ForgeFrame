@@ -13,4 +13,7 @@ export type {
   MemoryQuery,
   MemoryResult,
   MemoryConfig,
+  Session,
+  SessionCreateInput,
+  SessionListOptions,
 } from './types.js';

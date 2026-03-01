@@ -45,6 +45,22 @@ export interface MemoryConfig {
   embeddingDimension: number;
 }
 
+export interface Session {
+  id: string;
+  startedAt: number;
+  endedAt: number | null;
+  metadata: Record<string, unknown>;
+}
+
+export interface SessionCreateInput {
+  metadata?: Record<string, unknown>;
+}
+
+export interface SessionListOptions {
+  status?: 'active' | 'ended' | 'all';
+  limit?: number;
+}
+
 export const DEFAULT_CONFIG: MemoryConfig = {
   dbPath: './forgeframe.db',
   decayRate: 0.02,

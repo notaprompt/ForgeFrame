@@ -3,13 +3,12 @@
  */
 
 import { mkdirSync } from 'fs';
-import { randomUUID } from 'crypto';
 import { resolve } from 'path';
 import { homedir } from 'os';
 
 export interface ServerConfig {
   dbPath: string;
-  sessionId: string;
+  sessionId?: string;
   decayOnStartup: boolean;
   provenancePath: string;
   serverName: string;
@@ -31,7 +30,7 @@ export function loadConfig(overrides: Partial<ServerConfig> = {}): ServerConfig 
       ?? resolve(FORGEFRAME_DIR, 'memory.db'),
     sessionId: overrides.sessionId
       ?? env('SESSION_ID')
-      ?? randomUUID(),
+      ?? undefined,
     decayOnStartup: overrides.decayOnStartup
       ?? (env('DECAY_ON_STARTUP') !== 'false'),
     provenancePath: overrides.provenancePath

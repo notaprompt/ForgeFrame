@@ -7,7 +7,7 @@
 
 import Database from 'better-sqlite3';
 import { randomUUID } from 'crypto';
-import type { Memory, MemoryCreateInput, MemoryConfig } from './types.js';
+import type { Memory, MemoryCreateInput, MemoryConfig, Session, SessionCreateInput, SessionListOptions } from './types.js';
 import { DEFAULT_CONFIG } from './types.js';
 
 export class MemoryStore {
@@ -59,6 +59,16 @@ export class MemoryStore {
         INSERT INTO memories_fts(memories_fts, rowid, content) VALUES('delete', old.rowid, old.content);
         INSERT INTO memories_fts(rowid, content) VALUES (new.rowid, new.content);
       END;
+
+      CREATE TABLE IF NOT EXISTS sessions (
+        id TEXT PRIMARY KEY,
+        started_at INTEGER NOT NULL,
+        ended_at INTEGER,
+        metadata TEXT NOT NULL DEFAULT '{}'
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_sessions_started ON sessions(started_at);
+      CREATE INDEX IF NOT EXISTS idx_sessions_active ON sessions(ended_at) WHERE ended_at IS NULL;
     `);
   }
 
@@ -155,6 +165,52 @@ export class MemoryStore {
     return rows.map((r) => this._rowToMemory(r));
   }
 
+  startSession(input: SessionCreateInput = {}): Session {
+    const id = randomUUID();
+    const now = Date.now();
+    this._db.prepare(
+      'INSERT INTO sessions (id, started_at, metadata) VALUES (?, ?, ?)'
+    ).run(id, now, JSON.stringify(input.metadata ?? {}));
+    return this.getSession(id)!;
+  }
+
+  endSession(id: string): void {
+    const session = this.getSession(id);
+    if (!session) throw new Error(`Session not found: ${id}`);
+    if (session.endedAt !== null) throw new Error(`Session already ended: ${id}`);
+    this._db.prepare('UPDATE sessions SET ended_at = ? WHERE id = ?').run(Date.now(), id);
+  }
+
+  getSession(id: string): Session | null {
+    const row = this._db.prepare('SELECT * FROM sessions WHERE id = ?').get(id) as any;
+    if (!row) return null;
+    return this._rowToSession(row);
+  }
+
+  listSessions(opts: SessionListOptions = {}): Session[] {
+    const { status = 'all', limit = 50 } = opts;
+    let sql = 'SELECT * FROM sessions';
+    if (status === 'active') sql += ' WHERE ended_at IS NULL';
+    else if (status === 'ended') sql += ' WHERE ended_at IS NOT NULL';
+    sql += ' ORDER BY started_at DESC LIMIT ?';
+    const rows = this._db.prepare(sql).all(limit) as any[];
+    return rows.map((r) => this._rowToSession(r));
+  }
+
+  getActiveSession(): Session | null {
+    const row = this._db.prepare(
+      'SELECT * FROM sessions WHERE ended_at IS NULL ORDER BY started_at DESC LIMIT 1'
+    ).get() as any;
+    if (!row) return null;
+    return this._rowToSession(row);
+  }
+
+  deleteSession(id: string): boolean {
+    this._db.prepare('DELETE FROM memories WHERE session_id = ?').run(id);
+    const result = this._db.prepare('DELETE FROM sessions WHERE id = ?').run(id);
+    return result.changes > 0;
+  }
+
   close(): void {
     this._db.close();
   }
@@ -170,6 +226,15 @@ export class MemoryStore {
       lastAccessedAt: row.last_accessed_at,
       sessionId: row.session_id,
       tags: JSON.parse(row.tags),
+      metadata: JSON.parse(row.metadata),
+    };
+  }
+
+  private _rowToSession(row: any): Session {
+    return {
+      id: row.id,
+      startedAt: row.started_at,
+      endedAt: row.ended_at,
       metadata: JSON.parse(row.metadata),
     };
   }
