@@ -1,0 +1,164 @@
+/**
+ * @forgeframe/memory — MemoryStore
+ *
+ * SQLite-backed persistent memory with FTS5 full-text search.
+ * Handles storage, retrieval, decay, and access tracking.
+ */
+
+import Database from 'better-sqlite3';
+import { randomUUID } from 'crypto';
+import type { Memory, MemoryCreateInput, MemoryConfig } from './types.js';
+import { DEFAULT_CONFIG } from './types.js';
+
+export class MemoryStore {
+  private _db: Database.Database;
+  private _config: MemoryConfig;
+
+  constructor(config: Partial<MemoryConfig> = {}) {
+    this._config = { ...DEFAULT_CONFIG, ...config };
+    this._db = new Database(this._config.dbPath);
+    this._db.pragma('journal_mode = WAL');
+    this._db.pragma('foreign_keys = ON');
+    this._init();
+  }
+
+  private _init(): void {
+    this._db.exec(`
+      CREATE TABLE IF NOT EXISTS memories (
+        id TEXT PRIMARY KEY,
+        content TEXT NOT NULL,
+        embedding BLOB,
+        strength REAL NOT NULL DEFAULT 1.0,
+        access_count INTEGER NOT NULL DEFAULT 0,
+        created_at INTEGER NOT NULL,
+        last_accessed_at INTEGER NOT NULL,
+        session_id TEXT,
+        tags TEXT NOT NULL DEFAULT '[]',
+        metadata TEXT NOT NULL DEFAULT '{}'
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_memories_strength ON memories(strength);
+      CREATE INDEX IF NOT EXISTS idx_memories_session ON memories(session_id);
+      CREATE INDEX IF NOT EXISTS idx_memories_created ON memories(created_at);
+
+      CREATE VIRTUAL TABLE IF NOT EXISTS memories_fts USING fts5(
+        content,
+        content='memories',
+        content_rowid='rowid'
+      );
+
+      CREATE TRIGGER IF NOT EXISTS memories_ai AFTER INSERT ON memories BEGIN
+        INSERT INTO memories_fts(rowid, content) VALUES (new.rowid, new.content);
+      END;
+
+      CREATE TRIGGER IF NOT EXISTS memories_ad AFTER DELETE ON memories BEGIN
+        INSERT INTO memories_fts(memories_fts, rowid, content) VALUES('delete', old.rowid, old.content);
+      END;
+
+      CREATE TRIGGER IF NOT EXISTS memories_au AFTER UPDATE ON memories BEGIN
+        INSERT INTO memories_fts(memories_fts, rowid, content) VALUES('delete', old.rowid, old.content);
+        INSERT INTO memories_fts(rowid, content) VALUES (new.rowid, new.content);
+      END;
+    `);
+  }
+
+  create(input: MemoryCreateInput): Memory {
+    const now = Date.now();
+    const id = randomUUID();
+    const embeddingBuf = input.embedding
+      ? Buffer.from(new Float32Array(input.embedding).buffer)
+      : null;
+
+    this._db.prepare(`
+      INSERT INTO memories (id, content, embedding, strength, access_count, created_at, last_accessed_at, session_id, tags, metadata)
+      VALUES (?, ?, ?, 1.0, 0, ?, ?, ?, ?, ?)
+    `).run(
+      id,
+      input.content,
+      embeddingBuf,
+      now,
+      now,
+      input.sessionId || null,
+      JSON.stringify(input.tags || []),
+      JSON.stringify(input.metadata || {}),
+    );
+
+    return this.get(id)!;
+  }
+
+  get(id: string): Memory | null {
+    const row = this._db.prepare('SELECT * FROM memories WHERE id = ?').get(id) as any;
+    if (!row) return null;
+    return this._rowToMemory(row);
+  }
+
+  search(text: string, limit = 20): Memory[] {
+    const rows = this._db.prepare(`
+      SELECT m.* FROM memories m
+      JOIN memories_fts f ON m.rowid = f.rowid
+      WHERE memories_fts MATCH ?
+      ORDER BY rank
+      LIMIT ?
+    `).all(text, limit) as any[];
+
+    return rows.map((r) => this._rowToMemory(r));
+  }
+
+  getBySession(sessionId: string): Memory[] {
+    const rows = this._db.prepare(
+      'SELECT * FROM memories WHERE session_id = ? ORDER BY created_at'
+    ).all(sessionId) as any[];
+
+    return rows.map((r) => this._rowToMemory(r));
+  }
+
+  recordAccess(id: string): void {
+    this._db.prepare(`
+      UPDATE memories SET access_count = access_count + 1, last_accessed_at = ?, strength = MIN(1.0, strength + 0.1)
+      WHERE id = ?
+    `).run(Date.now(), id);
+  }
+
+  applyDecay(): number {
+    const dayMs = 86400000;
+    const now = Date.now();
+
+    const result = this._db.prepare(`
+      UPDATE memories
+      SET strength = MAX(?, strength - ? * ((? - last_accessed_at) / ?))
+      WHERE strength > ?
+    `).run(
+      this._config.decayFloor,
+      this._config.decayRate,
+      now,
+      dayMs,
+      this._config.decayFloor,
+    );
+
+    return result.changes;
+  }
+
+  count(): number {
+    const row = this._db.prepare('SELECT COUNT(*) as cnt FROM memories').get() as any;
+    return row.cnt;
+  }
+
+  close(): void {
+    this._db.close();
+  }
+
+  private _rowToMemory(row: any): Memory {
+    return {
+      id: row.id,
+      content: row.content,
+      embedding: row.embedding ? new Float32Array(row.embedding.buffer) : null,
+      strength: row.strength,
+      accessCount: row.access_count,
+      createdAt: row.created_at,
+      lastAccessedAt: row.last_accessed_at,
+      sessionId: row.session_id,
+      tags: JSON.parse(row.tags),
+      metadata: JSON.parse(row.metadata),
+    };
+  }
+}
