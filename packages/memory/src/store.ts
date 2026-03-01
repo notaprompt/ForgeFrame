@@ -143,6 +143,18 @@ export class MemoryStore {
     return row.cnt;
   }
 
+  delete(id: string): boolean {
+    const result = this._db.prepare('DELETE FROM memories WHERE id = ?').run(id);
+    return result.changes > 0;
+  }
+
+  getRecent(limit: number): Memory[] {
+    const rows = this._db.prepare(
+      'SELECT * FROM memories ORDER BY created_at DESC LIMIT ?'
+    ).all(limit) as any[];
+    return rows.map((r) => this._rowToMemory(r));
+  }
+
   close(): void {
     this._db.close();
   }

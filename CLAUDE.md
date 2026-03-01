@@ -4,10 +4,11 @@ Sovereign AI middleware. Routing, memory, provenance. Local-first.
 
 ## Architecture
 
-Monorepo with npm workspaces. Two packages:
+Monorepo with npm workspaces. Three packages:
 
 - `packages/memory/` (MIT) -- persistent semantic memory with SQLite + FTS5, weighted retrieval, strength decay
 - `packages/core/` (AGPL) -- tier-based model routing, provider registry, SSE normalization
+- `packages/server/` (MIT) -- MCP memory server wrapping @forgeframe/memory, exposes 5 tools, 2 resources, 1 prompt over stdio
 
 ## Stack
 
@@ -44,7 +45,7 @@ npm install
 npm run build
 ```
 
-Both packages must compile clean with zero errors.
+All three packages must compile clean with zero errors.
 
 ## Private docs
 
