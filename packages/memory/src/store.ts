@@ -192,14 +192,14 @@ export class MemoryStore {
     let sql = 'SELECT * FROM sessions';
     if (status === 'active') sql += ' WHERE ended_at IS NULL';
     else if (status === 'ended') sql += ' WHERE ended_at IS NOT NULL';
-    sql += ' ORDER BY started_at DESC LIMIT ?';
+    sql += ' ORDER BY started_at DESC, rowid DESC LIMIT ?';
     const rows = this._db.prepare(sql).all(limit) as any[];
     return rows.map((r) => this._rowToSession(r));
   }
 
   getActiveSession(): Session | null {
     const row = this._db.prepare(
-      'SELECT * FROM sessions WHERE ended_at IS NULL ORDER BY started_at DESC LIMIT 1'
+      'SELECT * FROM sessions WHERE ended_at IS NULL ORDER BY started_at DESC, rowid DESC LIMIT 1'
     ).get() as any;
     if (!row) return null;
     return this._rowToSession(row);
