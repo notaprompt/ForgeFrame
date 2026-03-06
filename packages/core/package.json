@@ -4,17 +4,19 @@
   "description": "ForgeFrame routing engine — tier-based model dispatch with provider registry",
   "license": "AGPL-3.0-only",
   "type": "module",
-  "main": "dist/index.js",
+  "main": "dist-cjs/index.js",
   "types": "dist/index.d.ts",
   "exports": {
     ".": {
       "import": "./dist/index.js",
+      "require": "./dist-cjs/index.js",
       "types": "./dist/index.d.ts"
     }
   },
-  "files": ["dist/"],
+  "files": ["dist/", "dist-cjs/"],
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && tsc -p tsconfig.cjs.json && node -e \"require('fs').writeFileSync('dist-cjs/package.json','{\\\"type\\\":\\\"commonjs\\\"}\\n')\"",
+    "build:cjs": "tsc -p tsconfig.cjs.json && node -e \"require('fs').writeFileSync('dist-cjs/package.json','{\\\"type\\\":\\\"commonjs\\\"}\\n')\"",
     "dev": "tsc --watch",
     "test": "vitest run"
   },
