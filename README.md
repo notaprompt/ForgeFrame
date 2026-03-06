@@ -1,81 +1,59 @@
 # ForgeFrame
 
-Local intelligence infrastructure. Routing, memory, provenance.
+**Local intelligence infrastructure. Routing, memory, provenance.**
 
-Every conversation with an AI disappears when the window closes. Every insight lives in someone else's cloud. ForgeFrame is the fix: a local layer that remembers, routes, and logs -- on your machine, under your control.
+Every conversation with an AI disappears when the window closes. Every insight lives in someone else's cloud. ForgeFrame keeps it on your machine -- a local layer that remembers, routes, and logs, under your control.
 
-## Architecture
-
-```
-packages/
-  memory/    Persistent semantic memory with weighted retrieval    MIT
-  core/      Model routing, provider registry, session management  AGPL-3.0
-  proxy/     Sovereign localhost proxy -- scrub, rehydrate, log    AGPL-3.0
-  server/    MCP memory server for any MCP client                  MIT
-```
+---
 
 ## What it does
 
-**Memory** -- Conversations don't disappear. They're stored locally, weighted by recency and access frequency, and decay over time like human memory. Your AI remembers you because the memory lives on your machine.
+**Remembers.** Conversations are stored locally with weighted retrieval. Memories strengthen when accessed, fade when forgotten, decay over time like the real thing. Your AI remembers you because the memory lives on your machine, not theirs.
 
-**Routing** -- Messages are classified by intent and routed to the optimal model. Simple questions go to fast, cheap models. Complex reasoning goes to frontier models. You configure the tiers. ForgeFrame handles dispatch.
+**Routes.** Messages are classified by intent and sent to the right model. Quick questions go to fast models. Deep reasoning goes to frontier models. You set the tiers. ForgeFrame dispatches.
 
-**Provenance** -- Every AI output that passes through ForgeFrame is timestamped and logged to an append-only local store. What was generated, when, by which model -- all auditable.
+**Protects.** The sovereign proxy scrubs PII before anything reaches a cloud LLM -- names, emails, file paths replaced with tokens on the way out, restored on the way back. Provenance logs every request. Nothing raw ever leaves.
 
-**Local-first** -- All data stays on your machine. No telemetry. No phone home. Your cognitive history belongs to you.
+**Connects.** MCP server exposes memory to any compatible client -- Claude Desktop, Cursor, anything that speaks MCP. Save, search, tag, update. The memory is yours to wire into whatever tools you use.
 
-## Quick start
+---
+
+## Packages
+
+```
+packages/
+  memory/    Persistent semantic memory       MIT
+  core/      Model routing, intent dispatch    AGPL-3.0
+  proxy/     Sovereign localhost proxy         AGPL-3.0
+  server/    MCP memory server                 MIT
+```
+
+**@forgeframe/memory** -- The primitive. SQLite + FTS5 full-text search. Weighted retrieval. Configurable decay. Session-scoped and cross-session queries. Extension points for embeddings. MIT licensed -- use it anywhere.
+
+**@forgeframe/core** -- The engine. Tier-based dispatch (quick / balanced / deep). Intent detection. Provider registry for Anthropic, OpenAI, Ollama, and custom providers. SSE stream normalization. Dependency injection throughout.
+
+**@forgeframe/proxy** -- The border. Localhost reverse proxy with a 3-tier scrub pipeline (regex, dictionary, local LLM). Token map replaces sensitive data with `[FF:CATEGORY_N]` placeholders. Stream rehydrator restores values across SSE chunk boundaries. Provenance logger hashes PII with SHA-256 -- never stores raw. *Scaffolded with 56 tests. LLM scrub tier stubbed, not yet wired to Ollama.*
+
+**@forgeframe/server** -- The interface. MCP server with 12 tools: save, search, update, list, tag, delete, status, plus full session management. Ready to publish.
+
+---
+
+## Current state
+
+Memory and server: production-ready, all tests passing, publishable to npm.
+Core: stable, CJS dual-build for Electron compatibility.
+Proxy: architecture complete, tests passing, needs real-world integration testing.
 
 ```bash
 npm install
 npm run build
 ```
 
-## MCP Integration
-
-ForgeFrame exposes its capabilities as an MCP server compatible with Claude Desktop, Cursor, and any MCP client.
-
-Setup instructions coming soon.
-
-## Packages
-
-### @forgeframe/memory (MIT)
-
-The primitive. Persistent semantic memory with:
-- SQLite + FTS5 full-text search
-- Weighted retrieval (strength = recency + access frequency)
-- Configurable decay (memories fade, frequently accessed ones persist)
-- Session-scoped and cross-session queries
-- Extension points for embedding-based semantic search
-
-### @forgeframe/core (AGPL-3.0)
-
-The engine. Multi-provider model routing with:
-- Tier-based dispatch (quick / balanced / deep)
-- Intent detection from message content
-- Provider registry (OpenAI-compatible, Anthropic, Ollama, custom)
-- SSE stream normalization across providers
-- Dependency injection (ConfigStore, KeyStore, Logger)
-
-### @forgeframe/proxy (AGPL-3.0)
-
-The border. Localhost reverse proxy that sits between you and cloud LLMs:
-- 3-tier scrub pipeline (regex, dictionary, local LLM) strips PII before it leaves your machine
-- Token map replaces sensitive data with `[FF:CATEGORY_N]` placeholders
-- Stream rehydrator restores real values on the way back, including across SSE chunk boundaries
-- Provenance logger records every request with SHA-256 hashed PII -- never raw
-- Anthropic and OpenAI upstream support
-
-### @forgeframe/server (MIT)
-
-The interface. MCP server wrapping @forgeframe/memory for any MCP client:
-- 7 memory tools (save, search, update, list recent, list by tag, delete, status)
-- 5 session tools (start, end, current, list)
-- Resources and prompts for context injection
+---
 
 ## License
 
-- `packages/memory/` and `packages/server/` -- [MIT License](LICENSE-MIT)
-- `packages/core/` and `packages/proxy/` -- [AGPL-3.0 License](LICENSE-AGPL)
+- `packages/memory/` and `packages/server/` -- [MIT](LICENSE-MIT)
+- `packages/core/` and `packages/proxy/` -- [AGPL-3.0](LICENSE-AGPL)
 
 The primitive is open. The infrastructure that protects it is copyleft.
