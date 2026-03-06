@@ -32,7 +32,7 @@ packages/
 
 **@forgeframe/core** -- The engine. Tier-based dispatch (quick / balanced / deep). Intent detection. Provider registry for Anthropic, OpenAI, Ollama, and custom providers. SSE stream normalization. Dependency injection throughout.
 
-**@forgeframe/proxy** -- The border. Localhost reverse proxy with a 3-tier scrub pipeline (regex, dictionary, local LLM). Token map replaces sensitive data with `[FF:CATEGORY_N]` placeholders. Stream rehydrator restores values across SSE chunk boundaries. Provenance logger hashes PII with SHA-256 -- never stores raw. *Scaffolded with 56 tests. LLM scrub tier stubbed, not yet wired to Ollama.*
+**@forgeframe/proxy** -- The border. Localhost reverse proxy with a 3-tier scrub pipeline (regex, dictionary, local LLM). Token map replaces sensitive data with `[FF:CATEGORY_N]` placeholders. Stream rehydrator restores values across SSE chunk boundaries. Provenance logger hashes PII with SHA-256 -- never stores raw. *Architecture complete. LLM scrub tier not yet wired to Ollama.*
 
 **@forgeframe/server** -- The interface. MCP server with 12 tools: save, search, update, list, tag, delete, status, plus full session management. Ready to publish.
 
