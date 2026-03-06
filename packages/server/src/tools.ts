@@ -117,6 +117,63 @@ export function registerTools(
   );
 
   server.tool(
+    'memory_update',
+    'Update an existing memory by ID',
+    {
+      id: z.string().describe('Memory ID to update'),
+      content: z.string().optional().describe('New content'),
+      tags: z.array(z.string()).optional().describe('New tags (replaces existing)'),
+      metadata: z.record(z.unknown()).optional().describe('New metadata (replaces existing)'),
+    },
+    async ({ id, content, tags, metadata }) => {
+      const updated = store.update(id, { content, tags, metadata });
+
+      if (!updated) {
+        return {
+          content: [{ type: 'text' as const, text: JSON.stringify({ error: 'Memory not found' }) }],
+        };
+      }
+
+      provenance.log({
+        timestamp: Date.now(),
+        action: 'memory_update',
+        memoryId: id,
+        sessionId: sessionRef.current.id,
+      });
+
+      events.emit('memory:updated', updated);
+
+      return {
+        content: [{ type: 'text' as const, text: JSON.stringify(updated) }],
+      };
+    },
+  );
+
+  server.tool(
+    'memory_list_by_tag',
+    'List memories filtered by tag',
+    {
+      tag: z.string().describe('Tag to filter by'),
+      limit: z.number().optional().describe('Max results (default 50)'),
+    },
+    async ({ tag, limit }) => {
+      const memories = store.listByTag(tag, limit ?? 50);
+
+      const formatted = memories.map((m) => ({
+        id: m.id,
+        content: m.content,
+        strength: m.strength,
+        tags: m.tags,
+        createdAt: m.createdAt,
+      }));
+
+      return {
+        content: [{ type: 'text' as const, text: JSON.stringify(formatted) }],
+      };
+    },
+  );
+
+  server.tool(
     'memory_delete',
     'Delete a memory by ID',
     {

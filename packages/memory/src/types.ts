@@ -23,6 +23,12 @@ export interface MemoryCreateInput {
   metadata?: Record<string, unknown>;
 }
 
+export interface MemoryUpdateInput {
+  content?: string;
+  tags?: string[];
+  metadata?: Record<string, unknown>;
+}
+
 export interface MemoryQuery {
   text?: string;
   embedding?: number[];

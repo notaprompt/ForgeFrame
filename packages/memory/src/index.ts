@@ -10,6 +10,7 @@ export { MemoryRetriever } from './retrieval.js';
 export type {
   Memory,
   MemoryCreateInput,
+  MemoryUpdateInput,
   MemoryQuery,
   MemoryResult,
   MemoryConfig,

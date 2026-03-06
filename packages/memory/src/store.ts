@@ -7,7 +7,7 @@
 
 import Database from 'better-sqlite3';
 import { randomUUID } from 'crypto';
-import type { Memory, MemoryCreateInput, MemoryConfig, Session, SessionCreateInput, SessionListOptions } from './types.js';
+import type { Memory, MemoryCreateInput, MemoryUpdateInput, MemoryConfig, Session, SessionCreateInput, SessionListOptions } from './types.js';
 import { DEFAULT_CONFIG } from './types.js';
 
 export class MemoryStore {
@@ -94,6 +94,42 @@ export class MemoryStore {
     );
 
     return this.get(id)!;
+  }
+
+  update(id: string, input: MemoryUpdateInput): Memory | null {
+    const existing = this.get(id);
+    if (!existing) return null;
+
+    const sets: string[] = [];
+    const params: unknown[] = [];
+
+    if (input.content !== undefined) {
+      sets.push('content = ?');
+      params.push(input.content);
+    }
+    if (input.tags !== undefined) {
+      sets.push('tags = ?');
+      params.push(JSON.stringify(input.tags));
+    }
+    if (input.metadata !== undefined) {
+      sets.push('metadata = ?');
+      params.push(JSON.stringify(input.metadata));
+    }
+
+    if (sets.length === 0) return existing;
+
+    params.push(id);
+    this._db.prepare(`UPDATE memories SET ${sets.join(', ')} WHERE id = ?`).run(...params);
+
+    return this.get(id)!;
+  }
+
+  listByTag(tag: string, limit = 50): Memory[] {
+    const rows = this._db.prepare(
+      "SELECT * FROM memories WHERE tags LIKE ? ORDER BY created_at DESC LIMIT ?"
+    ).all(`%${JSON.stringify(tag).slice(1, -1)}%`, limit) as any[];
+
+    return rows.map((r) => this._rowToMemory(r)).filter((m) => m.tags.includes(tag));
   }
 
   get(id: string): Memory | null {

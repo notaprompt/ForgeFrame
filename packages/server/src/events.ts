@@ -10,6 +10,7 @@ import type { Memory } from '@forgeframe/memory';
 export interface ServerEventMap {
   'memory:created': [memory: Memory];
   'memory:accessed': [memory: Memory];
+  'memory:updated': [memory: Memory];
   'memory:deleted': [id: string];
   'memory:decayed': [count: number];
   'session:started': [sessionId: string];
