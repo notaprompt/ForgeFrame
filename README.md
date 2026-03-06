@@ -12,7 +12,7 @@ Every conversation with an AI disappears when the window closes. Every insight l
 
 **Routes.** Messages are classified by intent and sent to the right model. Quick questions go to fast models. Deep reasoning goes to frontier models. You set the tiers. ForgeFrame dispatches.
 
-**Protects.** The sovereign proxy scrubs PII before anything reaches a cloud LLM -- names, emails, file paths replaced with tokens on the way out, restored on the way back. Provenance logs every request. Nothing raw ever leaves.
+**Protects.** The sovereign proxy scrubs PII before anything reaches a cloud LLM -- names, emails, file paths replaced with tokens on the way out, restored on the way back. Provenance logs every request. Regex and dictionary scrubbing work standalone. The deep scrub tier requires a local model (Ollama) for context-aware detection -- without it, that tier fails open. Full protection means local inference.
 
 **Connects.** MCP server exposes memory to any compatible client -- Claude Desktop, Cursor, anything that speaks MCP. Save, search, tag, update. The memory is yours to wire into whatever tools you use.
 
