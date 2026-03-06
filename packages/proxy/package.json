@@ -1,0 +1,26 @@
+{
+  "name": "@forgeframe/proxy",
+  "version": "0.1.0",
+  "description": "Sovereign localhost proxy -- scrub, inject, rehydrate, log",
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "forgeframe-proxy": "dist/bin.js"
+  },
+  "files": ["dist/"],
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@forgeframe/memory": "*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0"
+  }
+}
