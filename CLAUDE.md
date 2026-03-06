@@ -1,6 +1,6 @@
 # ForgeFrame
 
-Sovereign AI middleware. Routing, memory, provenance. Local-first.
+Local intelligence infrastructure. Routing, memory, provenance. Local-first.
 
 ## Architecture
 
@@ -32,11 +32,9 @@ Monorepo with npm workspaces. Three packages:
 [short description]
 
 [optional body]
-
-Co-authored with Opus
 ```
 
-No links in commit bodies. No emails in co-author tags.
+No links in commit bodies.
 
 ## Build
 
@@ -46,10 +44,6 @@ npm run build
 ```
 
 All three packages must compile clean with zero errors.
-
-## Private docs
-
-Architecture, GTM, and product strategy docs live in `C:\Users\acamp\Downloads\forgeframe-private\` -- never committed to git. Reference them when planning features but never quote strategy content in public files.
 
 ## Development workflow
 

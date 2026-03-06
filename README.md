@@ -1,6 +1,6 @@
 # ForgeFrame
 
-Sovereign AI middleware. Routing, memory, provenance.
+Local intelligence infrastructure. Routing, memory, provenance.
 
 ForgeFrame sits between you and every AI interface you use. It makes your interactions persistent, auditable, and yours.
 
