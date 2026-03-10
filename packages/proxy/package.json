@@ -9,6 +9,11 @@
   "bin": {
     "forgeframe-proxy": "dist/bin.js"
   },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/notaprompt/forgeframe.git",
+    "directory": "packages/proxy"
+  },
   "files": ["dist/"],
   "scripts": {
     "build": "tsc",
@@ -16,7 +21,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@forgeframe/memory": "*"
+    "@forgeframe/memory": "^0.1.0"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

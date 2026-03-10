@@ -13,6 +13,11 @@
       "types": "./dist/index.d.ts"
     }
   },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/notaprompt/forgeframe.git",
+    "directory": "packages/core"
+  },
   "files": ["dist/", "dist-cjs/"],
   "scripts": {
     "build": "tsc && tsc -p tsconfig.cjs.json && node -e \"require('fs').writeFileSync('dist-cjs/package.json','{\\\"type\\\":\\\"commonjs\\\"}\\n')\"",
