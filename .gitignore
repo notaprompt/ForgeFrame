@@ -6,3 +6,4 @@ dist-cjs/
 .env.*
 *.db
 *.db-journal
+.claude/

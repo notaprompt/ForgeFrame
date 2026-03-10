@@ -64,6 +64,9 @@ export function loadProxyConfig(overrides: Partial<ProxyConfig> = {}): ProxyConf
     provenanceDbPath: overrides.provenanceDbPath
       ?? env('PROVENANCE_PATH')
       ?? resolve(FORGEFRAME_DIR, 'proxy-provenance.jsonl'),
+    tokenMapPath: overrides.tokenMapPath
+      ?? env('TOKEN_MAP_PATH')
+      ?? resolve(FORGEFRAME_DIR, 'token-map.json'),
     maxMemoryResults: overrides.maxMemoryResults
       ?? (env('MAX_MEMORY') ? parseInt(env('MAX_MEMORY')!, 10) : undefined)
       ?? PROXY_DEFAULTS.maxMemoryResults,

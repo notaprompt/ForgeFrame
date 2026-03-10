@@ -8,7 +8,7 @@ Monorepo with npm workspaces. Three packages:
 
 - `packages/memory/` (MIT) -- persistent semantic memory with SQLite + FTS5, weighted retrieval, strength decay
 - `packages/core/` (AGPL) -- tier-based model routing, provider registry, SSE normalization
-- `packages/server/` (MIT) -- MCP memory server wrapping @forgeframe/memory, exposes 5 tools, 2 resources, 1 prompt over stdio
+- `packages/server/` (MIT) -- MCP memory server wrapping @forgeframe/memory, exposes 11 tools (7 memory + 4 session), 2 resources, 1 prompt over stdio
 
 ## Stack
 
@@ -43,7 +43,7 @@ npm install
 npm run build
 ```
 
-All three packages must compile clean with zero errors.
+All four packages must compile clean with zero errors.
 
 ## Development workflow
 

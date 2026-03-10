@@ -6,6 +6,7 @@
  */
 
 import { randomUUID } from 'crypto';
+import { readFileSync, writeFileSync } from 'fs';
 import type { Logger } from '@forgeframe/core';
 import type {
   ScrubEngine,
@@ -26,6 +27,7 @@ export interface PipelineConfig {
   upstream: Upstream;
   provenance: ProxyProvenanceLogger;
   logger: Logger;
+  tokenMapPath?: string;
 }
 
 interface AnthropicBody {
@@ -48,6 +50,7 @@ export class ProxyPipeline {
   private _provenance: ProxyProvenanceLogger;
   private _logger: Logger;
   private _tokenMap: TokenMapImpl;
+  private _tokenMapPath: string | null;
 
   constructor(config: PipelineConfig, tokenMap?: TokenMapImpl) {
     this._scrub = config.scrubEngine;
@@ -55,7 +58,28 @@ export class ProxyPipeline {
     this._upstream = config.upstream;
     this._provenance = config.provenance;
     this._logger = config.logger;
-    this._tokenMap = tokenMap ?? new TokenMapImpl();
+    this._tokenMapPath = config.tokenMapPath ?? null;
+    this._tokenMap = tokenMap ?? this._loadTokenMap();
+  }
+
+  private _loadTokenMap(): TokenMapImpl {
+    if (!this._tokenMapPath) return new TokenMapImpl();
+    try {
+      const json = readFileSync(this._tokenMapPath, 'utf-8');
+      this._logger.info(`Loaded token map (${JSON.parse(json).forward.length} entries)`);
+      return TokenMapImpl.deserialize(json);
+    } catch {
+      return new TokenMapImpl();
+    }
+  }
+
+  private _persistTokenMap(): void {
+    if (!this._tokenMapPath || this._tokenMap.size === 0) return;
+    try {
+      writeFileSync(this._tokenMapPath, this._tokenMap.serialize(), 'utf-8');
+    } catch (err) {
+      this._logger.error('Failed to persist token map:', err);
+    }
   }
 
   get tokenMap(): TokenMap {
@@ -103,6 +127,7 @@ export class ProxyPipeline {
       latencyMs: Date.now() - start,
     });
 
+    this._persistTokenMap();
     return { ...response, body: rehydratedBody };
   }
 
@@ -155,6 +180,8 @@ export class ProxyPipeline {
       rehydrated: true,
       latencyMs: Date.now() - start,
     });
+
+    this._persistTokenMap();
   }
 
   private async _scrubBody(body: unknown): Promise<{ body: unknown; originalText: string }> {

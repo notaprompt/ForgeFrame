@@ -3,7 +3,7 @@
 /**
  * @forgeframe/proxy -- CLI Entry Point
  *
- * Starts the sovereign proxy server.
+ * Starts the local proxy server.
  */
 
 import { MemoryStore, MemoryRetriever } from '@forgeframe/memory';

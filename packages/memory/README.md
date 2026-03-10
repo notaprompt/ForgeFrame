@@ -17,18 +17,18 @@ npm install @forgeframe/memory
 ```typescript
 import { MemoryStore, MemoryRetriever } from '@forgeframe/memory';
 
-const store = new MemoryStore('./memory.db');
+const store = new MemoryStore({ dbPath: './memory.db' });
 const retriever = new MemoryRetriever(store);
 
-// Save a memory
-store.save({ content: 'User prefers dark mode', tags: ['preference'] });
+// Create a memory
+store.create({ content: 'User prefers dark mode', tags: ['preference'] });
 
 // Search
-const results = retriever.search({ query: 'dark mode', limit: 5 });
+const results = retriever.query({ text: 'dark mode', limit: 5 });
 
 // Sessions
-store.startSession();
-store.endSession();
+const session = store.startSession();
+store.endSession(session.id);
 ```
 
 ## Features

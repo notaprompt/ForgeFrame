@@ -1,7 +1,7 @@
 {
   "name": "forgeframe",
   "private": true,
-  "description": "Sovereign AI middleware — routing, memory, provenance",
+  "description": "Local intelligence infrastructure -- routing, memory, provenance",
   "workspaces": [
     "packages/*"
   ],

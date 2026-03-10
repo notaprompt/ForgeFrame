@@ -22,8 +22,10 @@ export class MemoryStore {
     this._init();
   }
 
-  private _init(): void {
-    this._db.exec(`
+  private static readonly SCHEMA_VERSION = 1;
+
+  private static readonly MIGRATIONS: Record<number, string> = {
+    1: `
       CREATE TABLE IF NOT EXISTS memories (
         id TEXT PRIMARY KEY,
         content TEXT NOT NULL,
@@ -69,7 +71,19 @@ export class MemoryStore {
 
       CREATE INDEX IF NOT EXISTS idx_sessions_started ON sessions(started_at);
       CREATE INDEX IF NOT EXISTS idx_sessions_active ON sessions(ended_at) WHERE ended_at IS NULL;
-    `);
+    `,
+  };
+
+  private _init(): void {
+    const currentVersion = (this._db.pragma('user_version', { simple: true }) as number) ?? 0;
+
+    for (let v = currentVersion + 1; v <= MemoryStore.SCHEMA_VERSION; v++) {
+      const migration = MemoryStore.MIGRATIONS[v];
+      if (!migration) throw new Error(`Missing migration for version ${v}`);
+      this._db.exec(migration);
+    }
+
+    this._db.pragma(`user_version = ${MemoryStore.SCHEMA_VERSION}`);
   }
 
   create(input: MemoryCreateInput): Memory {

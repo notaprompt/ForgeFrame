@@ -1,6 +1,6 @@
 # @forgeframe/server
 
-MCP memory server that gives any MCP client persistent semantic memory across sessions. Local-first, SQLite-backed, no cloud dependency. Part of the ForgeFrame sovereign AI middleware stack.
+MCP memory server that gives any MCP client persistent semantic memory across sessions. Local-first, SQLite-backed, no cloud dependency.
 
 ## Install
 
@@ -70,8 +70,14 @@ events.on('memory:created', (memory) => {
 | `memory_save` | Save a memory | `content` (string, required), `tags` (string[]), `metadata` (object) |
 | `memory_search` | Search memories | `query` (string, required), `limit` (number), `tags` (string[]), `minStrength` (number) |
 | `memory_list_recent` | List recent memories | `limit` (number, default 20) |
+| `memory_update` | Update by ID | `id` (string, required), `content` (string), `tags` (string[]), `metadata` (object) |
+| `memory_list_by_tag` | Filter by tag | `tag` (string, required), `limit` (number, default 50) |
 | `memory_delete` | Delete by ID | `id` (string, required) |
 | `memory_status` | Server status | none |
+| `session_start` | Start new session | `metadata` (object) |
+| `session_end` | End active session | none |
+| `session_list` | List sessions | `status` (active/ended/all), `limit` (number, default 50) |
+| `session_current` | Get active session | none |
 
 ## Resources
 
@@ -105,7 +111,7 @@ MCP Client (Claude Desktop, Cursor, etc.)
     |
 @forgeframe/server (this package)
     |
-    |-- tools/      5 MCP tools (save, search, list, delete, status)
+    |-- tools/      11 MCP tools (7 memory + 4 session)
     |-- resources/  2 MCP resources (recent, search)
     |-- prompts/    1 MCP prompt (memory_context)
     |-- provenance  append-only JSONL audit trail

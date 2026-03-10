@@ -1,7 +1,7 @@
 /**
  * @forgeframe/server — Event Emitter
  *
- * Hook point for L4 (TRIM/Guardian) to attach without the MIT layer knowing.
+ * Hook point for extensions to attach without the MIT layer knowing.
  */
 
 import { EventEmitter } from 'events';

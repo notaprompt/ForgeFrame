@@ -2,7 +2,7 @@
  * @forgeframe/memory — Persistent Semantic Memory
  *
  * Local-first memory layer with weighted retrieval, strength decay,
- * and background consolidation. The sovereign primitive.
+ * and background consolidation. The local-first primitive.
  */
 
 export { MemoryStore } from './store.js';

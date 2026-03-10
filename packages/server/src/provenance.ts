@@ -1,7 +1,7 @@
 /**
  * @forgeframe/server — Provenance Logger
  *
- * Append-only JSONL audit trail. Foundation for L4 compliance.
+ * Append-only JSONL audit trail. Foundation for compliance extensions.
  */
 
 import { appendFileSync } from 'fs';

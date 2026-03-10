@@ -1,7 +1,7 @@
 /**
  * @forgeframe/proxy -- Types & Interfaces
  *
- * All public types for the sovereign proxy layer.
+ * All public types for the local proxy layer.
  */
 
 import type { Logger } from '@forgeframe/core';
@@ -127,6 +127,7 @@ export interface ProxyConfig {
   llmScrubEnabled: boolean;
   memoryDbPath: string;
   provenanceDbPath: string;
+  tokenMapPath: string;
   maxMemoryResults: number;
   allowlistPath: string | null;
   blocklistPath: string | null;

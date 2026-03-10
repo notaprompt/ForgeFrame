@@ -15,6 +15,13 @@
       "types": "./dist/index.d.ts"
     }
   },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/notaprompt/forgeframe.git",
+    "directory": "packages/server"
+  },
+  "engines": { "node": ">=20.0.0" },
+  "keywords": ["mcp", "mcp-server", "memory", "sqlite", "local-first"],
   "files": ["dist/"],
   "scripts": {
     "build": "tsc",
@@ -22,7 +29,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@forgeframe/memory": "*",
+    "@forgeframe/memory": "^0.1.0",
     "@modelcontextprotocol/sdk": "^1.27.0",
     "zod": "^3.24.0"
   },
