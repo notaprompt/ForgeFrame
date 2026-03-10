@@ -115,7 +115,7 @@ MCP Client (Claude Desktop, Cursor, etc.)
     |-- resources/  2 MCP resources (recent, search)
     |-- prompts/    1 MCP prompt (memory_context)
     |-- provenance  append-only JSONL audit trail
-    |-- events      hook point for L4 extensions
+    |-- events      hook point for downstream extensions
     |
 @forgeframe/memory (MIT)
     |
