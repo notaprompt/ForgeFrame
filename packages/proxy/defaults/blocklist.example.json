@@ -1,0 +1,7 @@
+[
+  { "value": "Your Full Name", "category": "PERSON" },
+  { "value": "your.email@example.com", "category": "EMAIL" },
+  { "value": "Your Company Name", "category": "ORG" },
+  { "value": "Secret Project Codename", "category": "PROJECT" },
+  { "value": "123 Main Street, City, State 12345", "category": "ADDRESS" }
+]

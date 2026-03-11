@@ -1,6 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { scrubWithDictionary, buildAllowlistSet } from './dictionary.js';
+import { scrubWithDictionary, buildAllowlistSet, loadDictionary } from './dictionary.js';
 import { TokenMapImpl } from '../token-map.js';
+import { writeFileSync, unlinkSync, mkdtempSync } from 'fs';
+import { join } from 'path';
+import { tmpdir } from 'os';
 import type { DictionaryEntry } from './dictionary.js';
 
 function scrub(text: string, blocklist: DictionaryEntry[], allowlist: string[] = []) {
@@ -64,5 +67,50 @@ describe('scrubWithDictionary', () => {
     // "Andrews" should NOT match, "Andrew" should
     expect(text).toContain('Andrews');
     expect(text).toContain('[FF:PERSON_1]');
+  });
+});
+
+describe('loadDictionary', () => {
+  let dir: string;
+
+  function writeTmp(name: string, content: string): string {
+    const p = join(dir, name);
+    writeFileSync(p, content);
+    return p;
+  }
+
+  it('loads object format with categories', () => {
+    dir = mkdtempSync(join(tmpdir(), 'ff-dict-'));
+    const p = writeTmp('bl.json', JSON.stringify([
+      { value: 'Alice', category: 'PERSON' },
+      { value: 'Acme', category: 'ORG' },
+    ]));
+    const { blocklist } = loadDictionary(p, null);
+    expect(blocklist).toHaveLength(2);
+    expect(blocklist[0]!.category).toBe('PERSON');
+    unlinkSync(p);
+  });
+
+  it('loads string array format as CUSTOM category', () => {
+    dir = mkdtempSync(join(tmpdir(), 'ff-dict-'));
+    const p = writeTmp('bl.json', JSON.stringify(['Secret', 'Project X']));
+    const { blocklist } = loadDictionary(p, null);
+    expect(blocklist).toHaveLength(2);
+    expect(blocklist[0]!.value).toBe('Secret');
+    expect(blocklist[0]!.category).toBe('CUSTOM');
+    unlinkSync(p);
+  });
+
+  it('handles missing file gracefully', () => {
+    const { blocklist, allowlist } = loadDictionary('/nonexistent/path.json', null);
+    expect(blocklist).toHaveLength(0);
+    expect(allowlist).toHaveLength(0);
+  });
+
+  it('handles malformed JSON gracefully', () => {
+    dir = mkdtempSync(join(tmpdir(), 'ff-dict-'));
+    const p = writeTmp('bad.json', '{not valid json');
+    expect(() => loadDictionary(p, null)).toThrow();
+    unlinkSync(p);
   });
 });

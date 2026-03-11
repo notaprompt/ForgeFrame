@@ -106,7 +106,7 @@ export const PROXY_DEFAULTS = {
   host: '127.0.0.1',
   ollamaUrl: 'http://localhost:11434',
   ollamaModel: 'qwen3:32b',
-  llmScrubTimeout: 500,
+  llmScrubTimeout: 2000,
   maxMemoryResults: 5,
   bufferHoldMax: 64,
   anthropicBaseUrl: 'https://api.anthropic.com',

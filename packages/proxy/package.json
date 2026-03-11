@@ -14,7 +14,7 @@
     "url": "https://github.com/notaprompt/forgeframe.git",
     "directory": "packages/proxy"
   },
-  "files": ["dist/"],
+  "files": ["dist/", "defaults/"],
   "scripts": {
     "build": "tsc",
     "test": "vitest run",

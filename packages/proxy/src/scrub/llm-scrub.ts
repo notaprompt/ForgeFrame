@@ -97,6 +97,54 @@ export async function scrubWithLlm(
   }
 }
 
+/**
+ * Check if Ollama is reachable. Returns true if the server responds.
+ */
+export async function checkOllamaHealth(ollamaUrl: string, timeout = 3000): Promise<boolean> {
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeout);
+    const res = await fetch(`${ollamaUrl}/api/tags`, { signal: controller.signal });
+    clearTimeout(timer);
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Warm up the LLM model by sending a tiny request.
+ * First inference after model load is slow; this gets it into memory.
+ */
+export async function warmupLlmScrub(
+  ollamaUrl: string,
+  model: string,
+  logger: Logger,
+): Promise<void> {
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 30000);
+    const res = await fetch(`${ollamaUrl}/api/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model,
+        stream: false,
+        messages: [{ role: 'user', content: 'ping' }],
+      }),
+      signal: controller.signal,
+    });
+    clearTimeout(timer);
+    if (res.ok) {
+      logger.info('LLM scrub: model warmed up');
+    } else {
+      logger.warn('LLM scrub: warmup got status', res.status);
+    }
+  } catch (err) {
+    logger.warn('LLM scrub: warmup failed, tier 3 may be slow on first request', err);
+  }
+}
+
 function escapeRegex(str: string): string {
   return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }

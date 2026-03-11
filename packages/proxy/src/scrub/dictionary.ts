@@ -5,7 +5,7 @@
  * Instant lookup (<1ms).
  */
 
-import { readFileSync, existsSync } from 'fs';
+import { readFileSync, existsSync, watchFile, unwatchFile } from 'fs';
 import type { TokenCategory, TokenMap, RedactionEntry } from '../types.js';
 
 export interface DictionaryEntry {
@@ -26,7 +26,9 @@ export function loadDictionary(blocklistPath: string | null, allowlistPath: stri
     const data = JSON.parse(readFileSync(blocklistPath, 'utf-8'));
     if (Array.isArray(data)) {
       for (const entry of data) {
-        if (entry.value && entry.category) {
+        if (typeof entry === 'string') {
+          blocklist.push({ value: entry, category: 'CUSTOM' });
+        } else if (entry.value && entry.category) {
           blocklist.push({ value: entry.value, category: entry.category });
         }
       }
@@ -80,4 +82,35 @@ export function scrubWithDictionary(
 
 function escapeRegex(str: string): string {
   return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * Watch a blocklist or allowlist file for changes. Reloads on modification.
+ * Uses fs.watchFile (polling) for cross-platform reliability.
+ */
+export function watchDictionary(
+  blocklistPath: string | null,
+  allowlistPath: string | null,
+  onChange: (config: DictionaryConfig) => void,
+  interval = 5000,
+): () => void {
+  const reload = () => {
+    try {
+      onChange(loadDictionary(blocklistPath, allowlistPath));
+    } catch (_) { /* ignore reload errors */ }
+  };
+
+  const paths: string[] = [];
+  if (blocklistPath && existsSync(blocklistPath)) {
+    watchFile(blocklistPath, { interval }, reload);
+    paths.push(blocklistPath);
+  }
+  if (allowlistPath && existsSync(allowlistPath)) {
+    watchFile(allowlistPath, { interval }, reload);
+    paths.push(allowlistPath);
+  }
+
+  return () => {
+    for (const p of paths) unwatchFile(p);
+  };
 }

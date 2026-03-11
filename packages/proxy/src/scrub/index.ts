@@ -62,4 +62,4 @@ export class ScrubEngineImpl implements ScrubEngine {
 export { scrubWithRegex } from './regex.js';
 export { scrubWithDictionary, loadDictionary, buildAllowlistSet } from './dictionary.js';
 export type { DictionaryEntry, DictionaryConfig } from './dictionary.js';
-export { scrubWithLlm } from './llm-scrub.js';
+export { scrubWithLlm, checkOllamaHealth, warmupLlmScrub } from './llm-scrub.js';

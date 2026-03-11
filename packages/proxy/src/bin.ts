@@ -9,7 +9,7 @@
 import { MemoryStore, MemoryRetriever } from '@forgeframe/memory';
 import { loadProxyConfig } from './config.js';
 import { TokenMapImpl } from './token-map.js';
-import { ScrubEngineImpl } from './scrub/index.js';
+import { ScrubEngineImpl, checkOllamaHealth, warmupLlmScrub } from './scrub/index.js';
 import { MemoryInjectorImpl } from './memory-injector.js';
 import { ProxyProvenanceLogger } from './provenance.js';
 import { createUpstream } from './upstream/index.js';
@@ -26,6 +26,17 @@ async function main() {
   const store = new MemoryStore({ dbPath: config.memoryDbPath });
   const retriever = new MemoryRetriever(store);
   const memoryInjector = new MemoryInjectorImpl(retriever);
+
+  // LLM scrub: health check + warmup
+  if (config.llmScrubEnabled) {
+    const healthy = await checkOllamaHealth(config.ollamaUrl);
+    if (healthy) {
+      logger.info('Ollama reachable, warming up model for LLM scrub...');
+      await warmupLlmScrub(config.ollamaUrl, config.ollamaModel, logger);
+    } else {
+      logger.warn('Ollama not reachable at', config.ollamaUrl, '-- tier 3 LLM scrub will fail-open');
+    }
+  }
 
   // Scrub
   const scrubEngine = new ScrubEngineImpl(config);
