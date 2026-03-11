@@ -4,7 +4,7 @@
 
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import type { MemoryStore, MemoryRetriever, Session } from '@forgeframe/memory';
+import type { MemoryStore, MemoryRetriever, Session, Embedder } from '@forgeframe/memory';
 import type { ProvenanceLogger } from './provenance.js';
 import type { ServerEvents } from './events.js';
 import type { ServerConfig } from './config.js';
@@ -15,6 +15,7 @@ export function registerTools(
   server: McpServer,
   store: MemoryStore,
   retriever: MemoryRetriever,
+  embedder: Embedder | null,
   provenance: ProvenanceLogger,
   events: ServerEvents,
   config: ServerConfig,
@@ -31,8 +32,15 @@ export function registerTools(
       metadata: z.record(z.unknown()).optional().describe('Arbitrary metadata'),
     },
     async ({ content, tags, metadata }) => {
+      let embedding: number[] | undefined;
+      if (embedder) {
+        const vec = await embedder.embed(content);
+        if (vec) embedding = vec;
+      }
+
       const memory = store.create({
         content,
+        embedding,
         tags: tags ?? [],
         metadata: metadata ?? {},
         sessionId: sessionRef.current.id,
@@ -63,7 +71,7 @@ export function registerTools(
       minStrength: z.number().optional().describe('Minimum memory strength (0-1)'),
     },
     async ({ query, limit, tags, minStrength }) => {
-      const results = retriever.query({
+      const results = await retriever.semanticQuery({
         text: query,
         limit: limit ?? 10,
         tags,
@@ -126,7 +134,13 @@ export function registerTools(
       metadata: z.record(z.unknown()).optional().describe('New metadata (replaces existing)'),
     },
     async ({ id, content, tags, metadata }) => {
-      const updated = store.update(id, { content, tags, metadata });
+      let embedding: number[] | undefined;
+      if (content && embedder) {
+        const vec = await embedder.embed(content);
+        if (vec) embedding = vec;
+      }
+
+      const updated = store.update(id, { content, embedding, tags, metadata });
 
       if (!updated) {
         return {
@@ -313,6 +327,36 @@ export function registerTools(
 
       return {
         content: [{ type: 'text' as const, text: JSON.stringify(active) }],
+      };
+    },
+  );
+
+  server.tool(
+    'memory_reindex',
+    'Backfill embeddings for memories that have none',
+    {
+      limit: z.number().optional().describe('Max memories to reindex (default 100)'),
+    },
+    async ({ limit }) => {
+      if (!embedder) {
+        return {
+          content: [{ type: 'text' as const, text: JSON.stringify({ error: 'No embedder configured' }) }],
+        };
+      }
+
+      const batch = store.getWithoutEmbedding(limit ?? 100);
+      let indexed = 0;
+
+      for (const mem of batch) {
+        const vec = await embedder.embed(mem.content);
+        if (vec) {
+          store.update(mem.id, { embedding: vec });
+          indexed++;
+        }
+      }
+
+      return {
+        content: [{ type: 'text' as const, text: JSON.stringify({ reindexed: indexed, total: batch.length }) }],
       };
     },
   );

@@ -16,7 +16,7 @@ Memory and server are [MIT](LICENSE-MIT). Core and proxy are [AGPL-3.0](LICENSE-
 
 **Protects.** Localhost proxy scrubs PII before anything reaches a cloud LLM -- tokens out, real values back. Regex and dictionary scrubbing work standalone. Deep scrub requires a local model (Ollama) -- without it, that tier fails open. Full protection means local inference.
 
-**Connects.** MCP server with 11 tools. Works with Claude Desktop, Cursor, anything that speaks MCP.
+**Connects.** MCP server with 12 tools. Works with Claude Desktop, Cursor, anything that speaks MCP.
 
 ---
 
@@ -48,16 +48,17 @@ packages/
 
 **@forgeframe/proxy** -- 3-tier scrub pipeline (regex, dictionary, local LLM). Token map with `[FF:CATEGORY_N]` placeholders. Stream rehydrator across SSE chunks. SHA-256 provenance. *LLM tier not yet wired to Ollama.*
 
-**@forgeframe/server** -- 11 MCP tools. Full session management. Ready to publish.
+**@forgeframe/server** -- 12 MCP tools. Full session management. Embedding pipeline via Ollama (nomic-embed-text). Boot-context ingestion from markdown directories.
 
 ---
 
 ## Current state
 
-Memory and server: production-ready, publishable to npm.
+Memory and server: production-ready, published to npm (v0.1.1).
 Core: stable, CJS dual-build for Electron compatibility.
 Proxy: architecture complete, needs real-world integration testing.
-Embedding pipeline: extension point exists, not yet wired to a local model.
+Embedding pipeline: wired to Ollama (nomic-embed-text). Semantic search with combined FTS + cosine similarity scoring. Graceful fallback to FTS-only when Ollama is unavailable.
+Boot-context ingestion: auto-indexes markdown directories at startup. Set `FORGEFRAME_INGEST_DIR` to point at your knowledge base.
 
 ---
 

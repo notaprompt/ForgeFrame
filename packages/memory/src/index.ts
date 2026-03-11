@@ -7,6 +7,8 @@
 
 export { MemoryStore } from './store.js';
 export { MemoryRetriever } from './retrieval.js';
+export { OllamaEmbedder } from './embedder.js';
+export type { Embedder, EmbedderConfig } from './embedder.js';
 export type {
   Memory,
   MemoryCreateInput,

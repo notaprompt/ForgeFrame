@@ -25,6 +25,7 @@ export interface MemoryCreateInput {
 
 export interface MemoryUpdateInput {
   content?: string;
+  embedding?: number[];
   tags?: string[];
   metadata?: Record<string, unknown>;
 }

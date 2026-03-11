@@ -1,6 +1,6 @@
 {
   "name": "@forgeframe/memory",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Persistent semantic memory for MCP — local-first, weighted, decaying",
   "license": "MIT",
   "type": "module",

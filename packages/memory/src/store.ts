@@ -121,6 +121,10 @@ export class MemoryStore {
       sets.push('content = ?');
       params.push(input.content);
     }
+    if (input.embedding !== undefined) {
+      sets.push('embedding = ?');
+      params.push(Buffer.from(new Float32Array(input.embedding).buffer));
+    }
     if (input.tags !== undefined) {
       sets.push('tags = ?');
       params.push(JSON.stringify(input.tags));
@@ -198,6 +202,12 @@ export class MemoryStore {
     return result.changes;
   }
 
+  resetStrength(id: string, strength = 1.0): void {
+    this._db.prepare(
+      'UPDATE memories SET strength = ?, last_accessed_at = ? WHERE id = ?'
+    ).run(strength, Date.now(), id);
+  }
+
   count(): number {
     const row = this._db.prepare('SELECT COUNT(*) as cnt FROM memories').get() as any;
     return row.cnt;
@@ -206,6 +216,24 @@ export class MemoryStore {
   delete(id: string): boolean {
     const result = this._db.prepare('DELETE FROM memories WHERE id = ?').run(id);
     return result.changes > 0;
+  }
+
+  getAllEmbeddings(): Array<{ id: string; embedding: Float32Array }> {
+    const rows = this._db.prepare(
+      'SELECT id, embedding FROM memories WHERE embedding IS NOT NULL'
+    ).all() as any[];
+
+    return rows.map((r) => ({
+      id: r.id,
+      embedding: new Float32Array(r.embedding.buffer),
+    }));
+  }
+
+  getWithoutEmbedding(limit: number): Memory[] {
+    const rows = this._db.prepare(
+      'SELECT * FROM memories WHERE embedding IS NULL ORDER BY created_at DESC LIMIT ?'
+    ).all(limit) as any[];
+    return rows.map((r) => this._rowToMemory(r));
   }
 
   getRecent(limit: number): Memory[] {

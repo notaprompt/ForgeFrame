@@ -3,27 +3,33 @@
  */
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { MemoryStore, MemoryRetriever } from '@forgeframe/memory';
-import type { Session } from '@forgeframe/memory';
+import { MemoryStore, MemoryRetriever, OllamaEmbedder } from '@forgeframe/memory';
+import type { Session, Embedder } from '@forgeframe/memory';
 import { loadConfig, type ServerConfig } from './config.js';
 import { ProvenanceLogger } from './provenance.js';
 import { ServerEvents } from './events.js';
 import { registerTools } from './tools.js';
 import { registerResources } from './resources.js';
 import { registerPrompts } from './prompts.js';
+import { ingestMarkdownDir } from './ingest.js';
 
 export interface ServerInstance {
   server: McpServer;
   store: MemoryStore;
   events: ServerEvents;
   session: Session;
+  embedder: Embedder | null;
   shutdown: () => void;
 }
 
 export function createServer(overrides?: Partial<ServerConfig>): ServerInstance {
   const config = loadConfig(overrides);
   const store = new MemoryStore({ dbPath: config.dbPath });
-  const retriever = new MemoryRetriever(store);
+  const embedder = new OllamaEmbedder({
+    ollamaUrl: config.ollamaUrl,
+    model: config.embeddingModel,
+  });
+  const retriever = new MemoryRetriever(store, embedder);
   const provenance = new ProvenanceLogger(config.provenancePath);
   const events = new ServerEvents();
 
@@ -41,15 +47,18 @@ export function createServer(overrides?: Partial<ServerConfig>): ServerInstance 
     { capabilities: { logging: {} } },
   );
 
-  registerTools(server, store, retriever, provenance, events, config, session);
+  registerTools(server, store, retriever, embedder, provenance, events, config, session);
   registerResources(server, store, config);
   registerPrompts(server);
 
   if (config.decayOnStartup) {
-    const decayed = store.applyDecay();
-    if (decayed > 0) {
-      events.emit('memory:decayed', decayed);
-    }
+    applyConstitutionalDecay(store);
+    events.emit('memory:decayed', 0);
+  }
+
+  // Boot-context ingestion (async, fire-and-forget)
+  if (config.ingestDir) {
+    ingestMarkdownDir(config.ingestDir, store, embedder).catch(() => {});
   }
 
   events.emit('session:started', session.id);
@@ -60,5 +69,23 @@ export function createServer(overrides?: Partial<ServerConfig>): ServerInstance 
     store.close();
   }
 
-  return { server, store, events, session, shutdown };
+  return { server, store, events, session, embedder, shutdown };
+}
+
+/**
+ * Apply decay but skip constitutional memories (identity kernel).
+ * Constitutional memories have metadata.constitutional === true.
+ */
+function applyConstitutionalDecay(store: MemoryStore): void {
+  // Identify constitutional memories before decay
+  const constitutional = store.listByTag('source:claude-code', 500)
+    .filter((m) => (m.metadata as Record<string, unknown>)?.constitutional === true);
+
+  // Apply decay to all
+  store.applyDecay();
+
+  // Restore constitutional memories to full strength
+  for (const m of constitutional) {
+    store.resetStrength(m.id, 1.0);
+  }
 }

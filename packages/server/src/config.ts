@@ -13,6 +13,9 @@ export interface ServerConfig {
   provenancePath: string;
   serverName: string;
   serverVersion: string;
+  ollamaUrl: string;
+  embeddingModel: string;
+  ingestDir?: string;
 }
 
 const FORGEFRAME_DIR = resolve(homedir(), '.forgeframe');
@@ -41,5 +44,14 @@ export function loadConfig(overrides: Partial<ServerConfig> = {}): ServerConfig 
       ?? 'forgeframe-memory',
     serverVersion: overrides.serverVersion
       ?? '0.1.0',
+    ollamaUrl: overrides.ollamaUrl
+      ?? env('OLLAMA_URL')
+      ?? 'http://localhost:11434',
+    embeddingModel: overrides.embeddingModel
+      ?? env('EMBEDDING_MODEL')
+      ?? 'nomic-embed-text',
+    ingestDir: overrides.ingestDir
+      ?? env('INGEST_DIR')
+      ?? undefined,
   };
 }

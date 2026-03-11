@@ -1,6 +1,6 @@
 {
   "name": "@forgeframe/server",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "MCP memory server for ForgeFrame — persistent semantic memory for any MCP client",
   "license": "MIT",
   "type": "module",
