@@ -74,12 +74,28 @@ export function createServer(overrides?: Partial<ServerConfig>): ServerInstance 
 
 /**
  * Apply decay but skip constitutional memories (identity kernel).
- * Constitutional memories have metadata.constitutional === true.
+ * Constitutional memories are tagged with TRIM constitutional tags (principle, voice)
+ * or have metadata.constitutional === true (legacy).
  */
 function applyConstitutionalDecay(store: MemoryStore): void {
-  // Identify constitutional memories before decay
-  const constitutional = store.listByTag('source:claude-code', 500)
+  // Collect constitutional memories before decay:
+  // 1. Legacy: metadata.constitutional === true
+  const legacyConstitutional = store.listByTag('source:claude-code', 500)
     .filter((m) => (m.metadata as Record<string, unknown>)?.constitutional === true);
+
+  // 2. TRIM: memories with constitutional tags (principle, voice)
+  const principleMemories = store.listByTag('principle', 500);
+  const voiceMemories = store.listByTag('voice', 500);
+
+  // Deduplicate by id
+  const seen = new Set<string>();
+  const constitutional: Array<{ id: string }> = [];
+  for (const m of [...legacyConstitutional, ...principleMemories, ...voiceMemories]) {
+    if (!seen.has(m.id)) {
+      seen.add(m.id);
+      constitutional.push(m);
+    }
+  }
 
   // Apply decay to all
   store.applyDecay();

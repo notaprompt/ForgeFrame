@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { MemoryStore } from './store.js';
+import { TRIM_TAGS, CONSTITUTIONAL_TAGS } from './types.js';
 
 describe('MemoryStore', () => {
   let store: MemoryStore;
@@ -157,6 +158,69 @@ describe('MemoryStore', () => {
       const mem = store.getRecent(1)[0];
       // Freshly created memory has near-zero time delta, so strength stays ~1.0
       expect(mem.strength).toBeGreaterThan(0.99);
+    });
+  });
+
+  describe('TRIM tag taxonomy', () => {
+    it('accepts all valid TRIM tags', () => {
+      for (const tag of TRIM_TAGS) {
+        const mem = store.create({ content: `tagged with ${tag}`, tags: [tag] });
+        expect(mem.tags).toContain(tag);
+      }
+    });
+
+    it('accepts custom tags alongside TRIM tags', () => {
+      const mem = store.create({
+        content: 'mixed tags',
+        tags: ['observation', 'my-custom-tag', 'entity'],
+      });
+      expect(mem.tags).toEqual(['observation', 'my-custom-tag', 'entity']);
+    });
+
+    it('accepts purely custom tags', () => {
+      const mem = store.create({
+        content: 'custom only',
+        tags: ['project:forgeframe', 'source:cli'],
+      });
+      expect(mem.tags).toEqual(['project:forgeframe', 'source:cli']);
+    });
+
+    it('rejects misspelled TRIM tags (case mismatch)', () => {
+      expect(() =>
+        store.create({ content: 'bad tag', tags: ['Observation'] })
+      ).toThrow(/Invalid TRIM tag.*did you mean "observation"/);
+    });
+
+    it('rejects misspelled TRIM tags on update', () => {
+      const mem = store.create({ content: 'will update', tags: ['observation'] });
+      expect(() =>
+        store.update(mem.id, { tags: ['Principle'] })
+      ).toThrow(/Invalid TRIM tag.*did you mean "principle"/);
+    });
+
+    it('identifies constitutional tags on memories', () => {
+      const principle = store.create({
+        content: 'core belief',
+        tags: ['principle'],
+      });
+      const voice = store.create({
+        content: 'communication style',
+        tags: ['voice'],
+      });
+      const observation = store.create({
+        content: 'just a note',
+        tags: ['observation'],
+      });
+
+      expect(store.hasConstitutionalTag(principle)).toBe(true);
+      expect(store.hasConstitutionalTag(voice)).toBe(true);
+      expect(store.hasConstitutionalTag(observation)).toBe(false);
+    });
+
+    it('constitutional tags are principle and voice', () => {
+      expect(CONSTITUTIONAL_TAGS).toContain('principle');
+      expect(CONSTITUTIONAL_TAGS).toContain('voice');
+      expect(CONSTITUTIONAL_TAGS).toHaveLength(2);
     });
   });
 

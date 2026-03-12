@@ -19,4 +19,6 @@ export type {
   Session,
   SessionCreateInput,
   SessionListOptions,
+  TrimTag,
 } from './types.js';
+export { TRIM_TAGS, CONSTITUTIONAL_TAGS } from './types.js';

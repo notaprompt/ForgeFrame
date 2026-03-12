@@ -2,6 +2,31 @@
  * @forgeframe/memory — Types
  */
 
+/**
+ * TRIM-mapped taxonomy: 7 tags across 3 cognitive layers + cross-layer.
+ *
+ * Object Layer (observation):  observation, entity, milestone
+ * Observer Layer (evaluation): pattern, evaluation
+ * Interpreter Layer (identity): principle, voice
+ * Cross-layer:                 decision, thread
+ */
+export const TRIM_TAGS = [
+  'observation',
+  'entity',
+  'milestone',
+  'pattern',
+  'evaluation',
+  'principle',
+  'voice',
+  'decision',
+  'thread',
+] as const;
+
+export type TrimTag = (typeof TRIM_TAGS)[number];
+
+/** Constitutional tags are exempt from decay (identity kernel). */
+export const CONSTITUTIONAL_TAGS: readonly TrimTag[] = ['principle', 'voice'] as const;
+
 export interface Memory {
   id: string;
   content: string;

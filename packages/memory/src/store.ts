@@ -8,7 +8,7 @@
 import Database from 'better-sqlite3';
 import { randomUUID } from 'crypto';
 import type { Memory, MemoryCreateInput, MemoryUpdateInput, MemoryConfig, Session, SessionCreateInput, SessionListOptions } from './types.js';
-import { DEFAULT_CONFIG } from './types.js';
+import { DEFAULT_CONFIG, TRIM_TAGS, CONSTITUTIONAL_TAGS } from './types.js';
 
 export class MemoryStore {
   private _db: Database.Database;
@@ -87,6 +87,7 @@ export class MemoryStore {
   }
 
   create(input: MemoryCreateInput): Memory {
+    if (input.tags?.length) this._validateTags(input.tags);
     const now = Date.now();
     const id = randomUUID();
     const embeddingBuf = input.embedding
@@ -111,6 +112,7 @@ export class MemoryStore {
   }
 
   update(id: string, input: MemoryUpdateInput): Memory | null {
+    if (input.tags?.length) this._validateTags(input.tags);
     const existing = this.get(id);
     if (!existing) return null;
 
@@ -289,8 +291,35 @@ export class MemoryStore {
     return result.changes > 0;
   }
 
+  /**
+   * Check if a memory has any constitutional tags (exempt from decay).
+   */
+  hasConstitutionalTag(memory: Memory): boolean {
+    return memory.tags.some((t) => (CONSTITUTIONAL_TAGS as readonly string[]).includes(t));
+  }
+
   close(): void {
     this._db.close();
+  }
+
+  /**
+   * Validate tags against the TRIM taxonomy.
+   * Custom tags are allowed. Known TRIM tags must be spelled exactly.
+   * Throws if a tag is a case-insensitive match for a TRIM tag but not exact.
+   */
+  private _validateTags(tags: string[]): void {
+    const trimSet = new Set<string>(TRIM_TAGS as readonly string[]);
+    const trimLower = new Map<string, string>();
+    for (const t of TRIM_TAGS) trimLower.set(t.toLowerCase(), t);
+
+    for (const tag of tags) {
+      if (trimSet.has(tag)) continue; // exact match, valid
+      const canonical = trimLower.get(tag.toLowerCase());
+      if (canonical) {
+        throw new Error(`Invalid TRIM tag "${tag}" — did you mean "${canonical}"?`);
+      }
+      // Unknown tag, not a TRIM tag — allowed
+    }
   }
 
   private _rowToMemory(row: any): Memory {
