@@ -92,7 +92,7 @@ export class ProxyPipeline {
     const start = Date.now();
 
     // 1. Scrub request body
-    const { body: scrubbedBody, originalText } = await this._scrubBody(request.body);
+    const { body: scrubbedBody, originalText, tierTimings } = await this._scrubBody(request.body);
 
     // 2. Inject memory context
     const finalBody = await this._injectMemory(scrubbedBody, originalText);
@@ -104,6 +104,7 @@ export class ProxyPipeline {
       action: 'proxy_request',
       originalPromptHash: ProxyProvenanceLogger.hash(originalText),
       scrubbed: JSON.stringify(finalBody),
+      tierTimings,
       upstream: request.path,
     });
 
@@ -137,7 +138,7 @@ export class ProxyPipeline {
     const start = Date.now();
 
     // 1. Scrub
-    const { body: scrubbedBody, originalText } = await this._scrubBody(request.body);
+    const { body: scrubbedBody, originalText, tierTimings } = await this._scrubBody(request.body);
 
     // 2. Inject memory
     const finalBody = await this._injectMemory(scrubbedBody, originalText);
@@ -149,6 +150,7 @@ export class ProxyPipeline {
       action: 'proxy_request',
       originalPromptHash: ProxyProvenanceLogger.hash(originalText),
       scrubbed: JSON.stringify(finalBody),
+      tierTimings,
       upstream: request.path,
     });
 
@@ -184,12 +186,13 @@ export class ProxyPipeline {
     this._persistTokenMap();
   }
 
-  private async _scrubBody(body: unknown): Promise<{ body: unknown; originalText: string }> {
+  private async _scrubBody(body: unknown): Promise<{ body: unknown; originalText: string; tierTimings?: { t1: number; t2: number; t3: number | null } }> {
     if (!body || typeof body !== 'object') return { body, originalText: '' };
 
     const bodyObj = body as Record<string, unknown>;
     const cloned = JSON.parse(JSON.stringify(bodyObj));
     let originalText = '';
+    let tierTimings: { t1: number; t2: number; t3: number | null } | undefined;
 
     // Scrub messages
     if (Array.isArray(cloned.messages)) {
@@ -198,12 +201,14 @@ export class ProxyPipeline {
           originalText += msg.content + '\n';
           const result = await this._scrub.scrub(msg.content, this._tokenMap);
           msg.content = result.text;
+          if (result.tierTimings) tierTimings = result.tierTimings;
         } else if (Array.isArray(msg.content)) {
           for (const block of msg.content) {
             if (block.type === 'text' && typeof block.text === 'string') {
               originalText += block.text + '\n';
               const result = await this._scrub.scrub(block.text, this._tokenMap);
               block.text = result.text;
+              if (result.tierTimings) tierTimings = result.tierTimings;
             }
           }
         }
@@ -215,17 +220,19 @@ export class ProxyPipeline {
       originalText += cloned.system + '\n';
       const result = await this._scrub.scrub(cloned.system, this._tokenMap);
       cloned.system = result.text;
+      if (result.tierTimings) tierTimings = result.tierTimings;
     } else if (Array.isArray(cloned.system)) {
       for (const block of cloned.system) {
         if (block.type === 'text' && typeof block.text === 'string') {
           originalText += block.text + '\n';
           const result = await this._scrub.scrub(block.text, this._tokenMap);
           block.text = result.text;
+          if (result.tierTimings) tierTimings = result.tierTimings;
         }
       }
     }
 
-    return { body: cloned, originalText };
+    return { body: cloned, originalText, tierTimings };
   }
 
   private async _injectMemory(body: unknown, originalText: string): Promise<unknown> {

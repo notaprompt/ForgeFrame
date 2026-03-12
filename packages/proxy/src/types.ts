@@ -37,6 +37,7 @@ export interface TokenMap {
 export interface ScrubResult {
   text: string;
   redactions: RedactionEntry[];
+  tierTimings?: { t1: number; t2: number; t3: number | null };
 }
 
 export interface RedactionEntry {

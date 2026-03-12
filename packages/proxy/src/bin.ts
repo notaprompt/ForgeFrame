@@ -6,7 +6,7 @@
  * Starts the local proxy server.
  */
 
-import { MemoryStore, MemoryRetriever } from '@forgeframe/memory';
+import { MemoryStore, MemoryRetriever, OllamaEmbedder } from '@forgeframe/memory';
 import { loadProxyConfig } from './config.js';
 import { TokenMapImpl } from './token-map.js';
 import { ScrubEngineImpl, checkOllamaHealth, warmupLlmScrub } from './scrub/index.js';
@@ -22,10 +22,17 @@ async function main() {
 
   logger.info('ForgeFrame Proxy starting...');
 
-  // Memory
+  // Memory (use semantic search when Ollama is available)
   const store = new MemoryStore({ dbPath: config.memoryDbPath });
-  const retriever = new MemoryRetriever(store);
-  const memoryInjector = new MemoryInjectorImpl(retriever);
+  let embedder: OllamaEmbedder | null = null;
+  try {
+    const healthy = await checkOllamaHealth(config.ollamaUrl);
+    if (healthy) {
+      embedder = new OllamaEmbedder({ ollamaUrl: config.ollamaUrl, model: 'nomic-embed-text' });
+    }
+  } catch { /* no embedder, FTS-only */ }
+  const retriever = new MemoryRetriever(store, embedder);
+  const memoryInjector = new MemoryInjectorImpl(retriever, embedder !== null);
 
   // LLM scrub: health check + warmup
   if (config.llmScrubEnabled) {
