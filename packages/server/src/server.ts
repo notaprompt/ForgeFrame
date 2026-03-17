@@ -11,7 +11,7 @@ import { ServerEvents } from './events.js';
 import { registerTools } from './tools.js';
 import { registerResources } from './resources.js';
 import { registerPrompts } from './prompts.js';
-import { ingestMarkdownDir } from './ingest.js';
+import { ingestMarkdownDir, syncSource } from './ingest.js';
 
 export interface ServerInstance {
   server: McpServer;
@@ -56,10 +56,20 @@ export function createServer(overrides?: Partial<ServerConfig>): ServerInstance 
     events.emit('memory:decayed', 0);
   }
 
-  // Boot-context ingestion (async, fire-and-forget)
-  if (config.ingestDir) {
-    ingestMarkdownDir(config.ingestDir, store, embedder).catch(() => {});
-  }
+  // All ingestion runs sequentially in a single async chain
+  (async () => {
+    if (config.ingestDir) {
+      await ingestMarkdownDir(config.ingestDir, store, embedder).catch(() => {});
+    }
+    if (config.sources) {
+      const seen = new Set<string>();
+      for (const source of config.sources) {
+        if (seen.has(source.name)) continue;
+        seen.add(source.name);
+        await syncSource(source, store, embedder).catch(() => {});
+      }
+    }
+  })();
 
   events.emit('session:started', session.id);
 
