@@ -241,14 +241,15 @@ export function registerTools(
       metadata: z.record(z.unknown()).optional().describe('Arbitrary session metadata'),
     },
     async ({ metadata }) => {
-      const active = store.getActiveSession();
-      if (active) {
-        store.endSession(active.id);
-        events.emit('session:ended', active.id);
+      // End only THIS process's session, not all active sessions.
+      // Multiple agents may have concurrent active sessions.
+      if (sessionRef.current && !store.isSessionEnded(sessionRef.current.id)) {
+        store.endSession(sessionRef.current.id);
+        events.emit('session:ended', sessionRef.current.id);
         provenance.log({
           timestamp: Date.now(),
           action: 'session_end',
-          sessionId: active.id,
+          sessionId: sessionRef.current.id,
         });
       }
 
@@ -274,25 +275,26 @@ export function registerTools(
     'End the current active session',
     {},
     async () => {
-      const active = store.getActiveSession();
-      if (!active) {
+      // End THIS process's session, not an arbitrary active one.
+      const mySession = sessionRef.current;
+      if (store.isSessionEnded(mySession.id)) {
         return {
-          content: [{ type: 'text' as const, text: JSON.stringify({ error: 'No active session' }) }],
+          content: [{ type: 'text' as const, text: JSON.stringify({ error: 'Session already ended' }) }],
         };
       }
 
-      store.endSession(active.id);
+      store.endSession(mySession.id);
 
       provenance.log({
         timestamp: Date.now(),
         action: 'session_end',
-        sessionId: active.id,
+        sessionId: mySession.id,
       });
 
-      events.emit('session:ended', active.id);
+      events.emit('session:ended', mySession.id);
 
       return {
-        content: [{ type: 'text' as const, text: JSON.stringify({ ended: active.id }) }],
+        content: [{ type: 'text' as const, text: JSON.stringify({ ended: mySession.id }) }],
       };
     },
   );

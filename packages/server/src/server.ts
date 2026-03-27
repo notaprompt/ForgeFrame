@@ -83,35 +83,22 @@ export function createServer(overrides?: Partial<ServerConfig>): ServerInstance 
 }
 
 /**
- * Apply decay but skip constitutional memories (identity kernel).
- * Constitutional memories are tagged with TRIM constitutional tags (principle, voice)
- * or have metadata.constitutional === true (legacy).
+ * Apply decay, skipping constitutional memories.
+ * Constitutional exclusion is handled at the SQL level in store.applyDecay()
+ * to avoid race conditions in multi-process (swarm) environments.
+ *
+ * Legacy constitutional memories (metadata.constitutional === true) are
+ * restored to full strength after decay as they cannot be excluded by tag.
  */
 function applyConstitutionalDecay(store: MemoryStore): void {
-  // Collect constitutional memories before decay:
-  // 1. Legacy: metadata.constitutional === true
+  // Decay all non-constitutional memories (principle/voice excluded in SQL)
+  store.applyDecay();
+
+  // Handle legacy constitutional memories that use metadata instead of tags
   const legacyConstitutional = store.listByTag('source:claude-code', 500)
     .filter((m) => (m.metadata as Record<string, unknown>)?.constitutional === true);
 
-  // 2. TRIM: memories with constitutional tags (principle, voice)
-  const principleMemories = store.listByTag('principle', 500);
-  const voiceMemories = store.listByTag('voice', 500);
-
-  // Deduplicate by id
-  const seen = new Set<string>();
-  const constitutional: Array<{ id: string }> = [];
-  for (const m of [...legacyConstitutional, ...principleMemories, ...voiceMemories]) {
-    if (!seen.has(m.id)) {
-      seen.add(m.id);
-      constitutional.push(m);
-    }
-  }
-
-  // Apply decay to all
-  store.applyDecay();
-
-  // Restore constitutional memories to full strength
-  for (const m of constitutional) {
+  for (const m of legacyConstitutional) {
     store.resetStrength(m.id, 1.0);
   }
 }

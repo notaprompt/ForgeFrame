@@ -19,6 +19,7 @@ export class MemoryStore {
     this._db = new Database(this._config.dbPath);
     this._db.pragma('journal_mode = WAL');
     this._db.pragma('foreign_keys = ON');
+    this._db.pragma('busy_timeout = 5000');
     this._init();
   }
 
@@ -185,20 +186,33 @@ export class MemoryStore {
     `).run(Date.now(), id);
   }
 
+  /**
+   * Apply strength decay to all non-constitutional memories.
+   * Constitutional tags (principle, voice) are excluded at the SQL level
+   * to avoid race conditions in multi-process environments.
+   */
   applyDecay(): number {
     const dayMs = 86400000;
     const now = Date.now();
 
+    // Exclude constitutional memories directly in the WHERE clause.
+    // This avoids the decay-then-restore pattern which races under concurrency.
+    const constitutionalPatterns = CONSTITUTIONAL_TAGS.map(
+      (tag) => `%${JSON.stringify(tag).slice(1, -1)}%`
+    );
+    const excludeClauses = constitutionalPatterns.map(() => 'tags NOT LIKE ?').join(' AND ');
+
     const result = this._db.prepare(`
       UPDATE memories
       SET strength = MAX(?, strength - ? * ((? - last_accessed_at) / ?))
-      WHERE strength > ?
+      WHERE strength > ? AND ${excludeClauses}
     `).run(
       this._config.decayFloor,
       this._config.decayRate,
       now,
       dayMs,
       this._config.decayFloor,
+      ...constitutionalPatterns,
     );
 
     return result.changes;
@@ -275,6 +289,11 @@ export class MemoryStore {
     sql += ' ORDER BY started_at DESC, rowid DESC LIMIT ?';
     const rows = this._db.prepare(sql).all(limit) as any[];
     return rows.map((r) => this._rowToSession(r));
+  }
+
+  isSessionEnded(id: string): boolean {
+    const session = this.getSession(id);
+    return !session || session.endedAt !== null;
   }
 
   getActiveSession(): Session | null {

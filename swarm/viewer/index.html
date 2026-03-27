@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ForgeFrame Swarm</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --cream: #E8DCC8;
+    --cream-light: #f4f1eb;
+    --gold: #b8965a;
+    --ink: #2a2a2a;
+    --ink-light: #6b6560;
+    --ink-faint: #a89f96;
+    --red: #c0392b;
+    --green: #27ae60;
+    --amber: #e67e22;
+    --card-bg: #faf8f4;
+    --border: #d4cfc6;
+  }
+
+  body {
+    font-family: 'JetBrains Mono', monospace;
+    background: var(--cream);
+    color: var(--ink);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* --- Header --- */
+  .header {
+    padding: 20px 24px 16px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+  }
+
+  .header h1 {
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 2.5px;
+    text-transform: uppercase;
+    color: var(--ink);
+  }
+
+  .header .status {
+    font-size: 9px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+  }
+
+  .header .status .dot {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    margin-right: 4px;
+    vertical-align: middle;
+    background: var(--ink-faint);
+  }
+
+  .header .status .dot.connected { background: var(--green); }
+
+  /* --- Pixel Office --- */
+  .office {
+    padding: 24px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+    justify-content: center;
+    min-height: 140px;
+    background: var(--card-bg);
+  }
+
+  .agent-card {
+    width: 120px;
+    text-align: center;
+    padding: 12px 8px;
+    border: 1px solid var(--border);
+    background: var(--cream-light);
+    position: relative;
+  }
+
+  .agent-card canvas {
+    image-rendering: pixelated;
+    display: block;
+    margin: 0 auto 8px;
+  }
+
+  .agent-card .name {
+    font-size: 8px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--ink);
+    margin-bottom: 4px;
+  }
+
+  .agent-card .role {
+    font-size: 7px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--ink-light);
+    margin-bottom: 6px;
+  }
+
+  .agent-card .badge {
+    font-size: 7px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    padding: 2px 6px;
+    display: inline-block;
+  }
+
+  .badge.active { background: var(--green); color: white; }
+  .badge.done { background: var(--ink-faint); color: white; }
+  .badge.watching { background: var(--amber); color: white; }
+
+  /* --- Stats Bar --- */
+  .stats {
+    padding: 12px 24px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    gap: 24px;
+    font-size: 9px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--ink-light);
+  }
+
+  .stats .stat-value {
+    color: var(--ink);
+    font-weight: 700;
+  }
+
+  /* --- Live Feed --- */
+  .feed-header {
+    padding: 16px 24px 8px;
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+  }
+
+  .feed-header h2 {
+    font-size: 9px;
+    font-weight: 500;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--ink-light);
+  }
+
+  .feed-header .live-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--red);
+    display: inline-block;
+    animation: pulse 2s infinite;
+    margin-right: 4px;
+    vertical-align: middle;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+
+  .feed {
+    padding: 0 24px 24px;
+    max-height: 60vh;
+    overflow-y: auto;
+  }
+
+  .feed::-webkit-scrollbar { width: 4px; }
+  .feed::-webkit-scrollbar-track { background: transparent; }
+  .feed::-webkit-scrollbar-thumb { background: var(--border); }
+
+  .feed-item {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+    animation: fadeIn 0.3s ease;
+  }
+
+  .feed-item.new {
+    background: rgba(184, 150, 90, 0.08);
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .feed-item .meta {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 4px;
+  }
+
+  .feed-item .agent-tag {
+    font-size: 8px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+  }
+
+  .agent-tag.breaker { color: var(--red); }
+  .agent-tag.fixer { color: var(--green); }
+  .agent-tag.skeptic { color: var(--amber); }
+  .agent-tag.builder { color: var(--gold); }
+
+  .feed-item .time {
+    font-size: 8px;
+    color: var(--ink-faint);
+    letter-spacing: 1px;
+  }
+
+  .feed-item .content {
+    font-size: 10px;
+    line-height: 1.5;
+    color: var(--ink);
+    word-break: break-word;
+  }
+
+  .feed-item .tags {
+    margin-top: 4px;
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+  }
+
+  .feed-item .tag {
+    font-size: 7px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    padding: 1px 5px;
+    background: var(--border);
+    color: var(--ink-light);
+  }
+
+  .tag.severity-load-bearing { background: var(--red); color: white; }
+  .tag.severity-time-bomb { background: var(--amber); color: white; }
+  .tag.severity-cosmetic { background: var(--ink-faint); color: white; }
+
+  .empty-state {
+    text-align: center;
+    padding: 40px;
+    color: var(--ink-faint);
+    font-size: 10px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+  }
+
+  /* --- Film grain overlay --- */
+  body::after {
+    content: '';
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    pointer-events: none;
+    opacity: 0.03;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+    z-index: 9999;
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>ForgeFrame Swarm</h1>
+  <div class="status">
+    <span class="dot" id="statusDot"></span>
+    <span id="statusText">connecting</span>
+  </div>
+</div>
+
+<div class="office" id="agentOffice">
+  <!-- Agent cards rendered by JS -->
+</div>
+
+<div class="stats" id="statsBar">
+  <div>memories <span class="stat-value" id="statMemories">--</span></div>
+  <div>sessions <span class="stat-value" id="statSessions">--</span></div>
+  <div>findings <span class="stat-value" id="statFindings">0</span></div>
+  <div>challenges <span class="stat-value" id="statChallenges">0</span></div>
+</div>
+
+<div class="feed-header">
+  <h2>Live Feed</h2>
+  <div><span class="live-dot"></span><span style="font-size:8px;letter-spacing:1.5px;text-transform:uppercase;color:var(--ink-faint)">live</span></div>
+</div>
+
+<div class="feed" id="feed">
+  <div class="empty-state" id="emptyState">Waiting for agent activity...</div>
+</div>
+
+<script>
+const API = window.location.origin;
+let findingsCount = 0;
+let challengesCount = 0;
+const seenIds = new Set();
+
+// --- Pixel Character Renderer ---
+class PixelCharacter {
+  constructor(canvas, palette) {
+    this.canvas = canvas;
+    this.ctx = canvas.getContext('2d');
+    this.palette = palette;
+    this.frame = 0;
+    this.state = 'idle'; // idle, working, reading
+    canvas.width = 48;
+    canvas.height = 64;
+    this.draw();
+  }
+
+  draw() {
+    const ctx = this.ctx;
+    const p = this.palette;
+    ctx.clearRect(0, 0, 48, 64);
+    ctx.imageSmoothingEnabled = false;
+
+    // Body
+    ctx.fillStyle = p.body;
+    ctx.fillRect(16, 24, 16, 20);
+
+    // Head
+    ctx.fillStyle = p.skin;
+    ctx.fillRect(18, 8, 12, 14);
+
+    // Eyes
+    ctx.fillStyle = p.eyes;
+    if (this.state === 'reading') {
+      // Looking down
+      ctx.fillRect(20, 17, 3, 2);
+      ctx.fillRect(26, 17, 3, 2);
+    } else {
+      ctx.fillRect(20, 15, 3, 3);
+      ctx.fillRect(26, 15, 3, 3);
+    }
+
+    // Hair
+    ctx.fillStyle = p.hair;
+    ctx.fillRect(17, 6, 14, 6);
+    ctx.fillRect(16, 8, 2, 8);
+    ctx.fillRect(30, 8, 2, 8);
+
+    // Arms
+    ctx.fillStyle = p.skin;
+    if (this.state === 'working') {
+      // Typing pose - arms forward
+      const offset = this.frame % 2 === 0 ? 0 : 1;
+      ctx.fillRect(10, 30 + offset, 6, 4);
+      ctx.fillRect(32, 30 - offset, 6, 4);
+    } else {
+      ctx.fillRect(10, 28, 6, 4);
+      ctx.fillRect(32, 28, 6, 4);
+    }
+
+    // Legs
+    ctx.fillStyle = p.legs;
+    ctx.fillRect(18, 44, 5, 12);
+    ctx.fillRect(25, 44, 5, 12);
+
+    // Shoes
+    ctx.fillStyle = p.shoes;
+    ctx.fillRect(17, 56, 7, 4);
+    ctx.fillRect(24, 56, 7, 4);
+
+    // Screen glow when working
+    if (this.state === 'working') {
+      ctx.fillStyle = 'rgba(184, 150, 90, 0.15)';
+      ctx.fillRect(14, 12, 20, 16);
+    }
+  }
+
+  setState(state) {
+    this.state = state;
+    this.draw();
+  }
+
+  animate() {
+    this.frame++;
+    this.draw();
+  }
+}
+
+// Character palettes
+const PALETTES = {
+  breaker: { body: '#c0392b', skin: '#f0d5a0', eyes: '#2a2a2a', hair: '#2a2a2a', legs: '#34495e', shoes: '#2a2a2a' },
+  fixer: { body: '#27ae60', skin: '#e8c88a', eyes: '#2a2a2a', hair: '#5a3a1a', legs: '#2c3e50', shoes: '#3a2a1a' },
+  skeptic: { body: '#e67e22', skin: '#f0d5a0', eyes: '#2a2a2a', hair: '#8b4513', legs: '#34495e', shoes: '#2a2a2a' },
+  builder: { body: '#b8965a', skin: '#e8c88a', eyes: '#2a2a2a', hair: '#2a2a2a', legs: '#2c3e50', shoes: '#3a2a1a' },
+};
+
+const agents = new Map();
+const characters = new Map();
+
+function detectAgentRole(tags, content) {
+  if (!tags) return 'builder';
+  const t = tags.join(' ');
+  const c = (content || '').toLowerCase();
+  if (t.includes('agent:breaker') || t.includes('agent:builder-1') || c.includes('breaker')) return 'breaker';
+  if (t.includes('agent:fixer') || t.includes('agent:builder-2') || c.includes('fixer')) return 'fixer';
+  if (t.includes('agent:skeptic') || c.includes('skeptic')) return 'skeptic';
+  return 'builder';
+}
+
+function renderAgents() {
+  const office = document.getElementById('agentOffice');
+  // Only re-render if agents changed
+  const currentIds = [...agents.keys()].sort().join(',');
+  if (office.dataset.ids === currentIds) {
+    // Just update badges
+    for (const [id, agent] of agents) {
+      const badge = document.querySelector(`[data-agent="${id}"] .badge`);
+      if (badge) {
+        badge.textContent = agent.status;
+        badge.className = `badge ${agent.status}`;
+      }
+      const char = characters.get(id);
+      if (char) {
+        char.setState(agent.status === 'active' ? 'working' : 'idle');
+        char.animate();
+      }
+    }
+    return;
+  }
+  office.dataset.ids = currentIds;
+  office.innerHTML = '';
+
+  for (const [id, agent] of agents) {
+    const card = document.createElement('div');
+    card.className = 'agent-card';
+    card.dataset.agent = id;
+
+    const canvas = document.createElement('canvas');
+    const char = new PixelCharacter(canvas, PALETTES[agent.role] || PALETTES.builder);
+    char.setState(agent.status === 'active' ? 'working' : 'idle');
+    characters.set(id, char);
+
+    const name = document.createElement('div');
+    name.className = 'name';
+    name.textContent = id;
+
+    const role = document.createElement('div');
+    role.className = 'role';
+    role.textContent = agent.role;
+
+    const badge = document.createElement('div');
+    badge.className = `badge ${agent.status}`;
+    badge.textContent = agent.status;
+
+    card.appendChild(canvas);
+    card.appendChild(name);
+    card.appendChild(role);
+    card.appendChild(badge);
+    office.appendChild(card);
+  }
+}
+
+// --- Feed ---
+
+function addFeedItem(memory, isNew) {
+  if (seenIds.has(memory.id)) return;
+  seenIds.add(memory.id);
+
+  const emptyState = document.getElementById('emptyState');
+  if (emptyState) emptyState.remove();
+
+  const feed = document.getElementById('feed');
+  const item = document.createElement('div');
+  item.className = `feed-item${isNew ? ' new' : ''}`;
+
+  const role = detectAgentRole(memory.tags, memory.content);
+  const time = new Date(memory.createdAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true });
+
+  // Extract first meaningful line of content
+  const lines = (memory.content || '').split('\n').filter(l => l.trim());
+  const preview = lines[0]?.substring(0, 200) || 'Memory saved';
+
+  // Detect severity
+  const content = memory.content || '';
+  let severity = '';
+  if (content.includes('load-bearing') || content.includes('LOAD-BEARING')) severity = 'load-bearing';
+  else if (content.includes('time-bomb') || content.includes('TIME-BOMB')) severity = 'time-bomb';
+  else if (content.includes('cosmetic') || content.includes('COSMETIC')) severity = 'cosmetic';
+
+  // Track counts
+  if (memory.tags?.includes('challenge')) challengesCount++;
+  if (memory.tags?.some(t => t.includes('remediation') || t.includes('observation') || t.includes('challenge'))) findingsCount++;
+
+  item.innerHTML = `
+    <div class="meta">
+      <span class="agent-tag ${role}">${role}</span>
+      <span class="time">${time}</span>
+    </div>
+    <div class="content">${escapeHtml(preview)}</div>
+    <div class="tags">
+      ${(memory.tags || []).map(t => {
+        let cls = 'tag';
+        if (severity && t === 'challenge') cls += ` severity-${severity}`;
+        return `<span class="${cls}">${t}</span>`;
+      }).join('')}
+      ${severity ? `<span class="tag severity-${severity}">${severity}</span>` : ''}
+    </div>
+  `;
+
+  feed.insertBefore(item, feed.firstChild);
+
+  // Remove 'new' highlight after animation
+  if (isNew) {
+    setTimeout(() => item.classList.remove('new'), 3000);
+  }
+
+  // Update stats
+  document.getElementById('statFindings').textContent = findingsCount;
+  document.getElementById('statChallenges').textContent = challengesCount;
+
+  // Update agent status
+  if (role && !agents.has(role)) {
+    agents.set(role, { role, status: 'active' });
+    renderAgents();
+  }
+}
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+// --- Data Loading ---
+
+async function loadInitialData() {
+  try {
+    // Load status
+    const statusRes = await fetch(`${API}/api/status`);
+    const status = await statusRes.json();
+    document.getElementById('statMemories').textContent = status.memoryCount;
+    document.getElementById('statSessions').textContent = status.activeSessions;
+
+    // Detect agents from active sessions
+    for (const session of status.sessions || []) {
+      const meta = session.metadata || {};
+      const agentName = meta.agent || `session-${session.id.slice(0, 6)}`;
+      const role = agentName.includes('skeptic') ? 'skeptic'
+        : agentName.includes('fixer') || agentName.includes('builder-2') ? 'fixer'
+        : agentName.includes('breaker') || agentName.includes('builder-1') ? 'breaker'
+        : 'builder';
+      agents.set(agentName, { role, status: session.endedAt ? 'done' : 'active' });
+    }
+    renderAgents();
+
+    // Load recent agent memories
+    const agentTags = ['agent:breaker', 'agent:fixer', 'agent:skeptic', 'agent:builder'];
+    for (const tag of agentTags) {
+      try {
+        const res = await fetch(`${API}/api/memories/by-tag/${encodeURIComponent(tag)}?limit=20`);
+        const memories = await res.json();
+        for (const mem of memories.reverse()) {
+          addFeedItem(mem, false);
+        }
+      } catch {}
+    }
+  } catch (e) {
+    console.error('Failed to load initial data:', e);
+  }
+}
+
+// --- SSE Connection ---
+
+function connectSSE() {
+  const dot = document.getElementById('statusDot');
+  const text = document.getElementById('statusText');
+
+  const es = new EventSource(`${API}/api/events`);
+
+  es.onopen = () => {
+    dot.className = 'dot connected';
+    text.textContent = 'connected';
+  };
+
+  es.onerror = () => {
+    dot.className = 'dot';
+    text.textContent = 'reconnecting';
+  };
+
+  es.addEventListener('memory:created', (e) => {
+    const memory = JSON.parse(e.data);
+    addFeedItem(memory, true);
+
+    // Update memory count
+    const el = document.getElementById('statMemories');
+    el.textContent = parseInt(el.textContent || '0') + 1;
+  });
+
+  es.addEventListener('session:started', (e) => {
+    const { sessionId } = JSON.parse(e.data);
+    const el = document.getElementById('statSessions');
+    el.textContent = parseInt(el.textContent || '0') + 1;
+  });
+
+  es.addEventListener('session:ended', (e) => {
+    const { sessionId } = JSON.parse(e.data);
+    const el = document.getElementById('statSessions');
+    const current = parseInt(el.textContent || '1');
+    el.textContent = Math.max(0, current - 1);
+  });
+}
+
+// --- Animate characters ---
+setInterval(() => {
+  for (const char of characters.values()) {
+    char.animate();
+  }
+}, 500);
+
+// --- Boot ---
+loadInitialData();
+connectSSE();
+</script>
+</body>
+</html>
