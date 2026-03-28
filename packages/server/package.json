@@ -1,13 +1,14 @@
 {
   "name": "@forgeframe/server",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "MCP memory server for ForgeFrame — persistent semantic memory for any MCP client",
   "license": "MIT",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "bin": {
-    "forgeframe-memory": "./dist/bin.js"
+    "forgeframe-memory": "./dist/bin.js",
+    "forgeframe": "./dist/cli.js"
   },
   "exports": {
     ".": {
@@ -29,8 +30,10 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@forgeframe/memory": "^0.1.0",
+    "@forgeframe/memory": "^0.2.0",
+    "@hono/node-server": "^1.19.0",
     "@modelcontextprotocol/sdk": "^1.27.0",
+    "hono": "^4.12.0",
     "zod": "^3.24.0"
   },
   "devDependencies": {

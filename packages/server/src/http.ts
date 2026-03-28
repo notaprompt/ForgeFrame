@@ -2,7 +2,7 @@
  * @forgeframe/server — HTTP Transport
  *
  * Hono-based HTTP API + SSE for the swarm viewer.
- * Runs alongside the MCP stdio transport.
+ * Runs alongside the MCP stdio transport or as a standalone daemon.
  */
 
 import { Hono } from 'hono';
@@ -11,17 +11,31 @@ import { streamSSE } from 'hono/streaming';
 import { serve } from '@hono/node-server';
 import type { MemoryStore } from '@forgeframe/memory';
 import type { ServerEvents } from './events.js';
+import { bearerAuth } from './auth.js';
 
 export interface HttpServerOptions {
   store: MemoryStore;
   events: ServerEvents;
   port: number;
+  hostname?: string;
 }
 
-export function startHttpServer({ store, events, port }: HttpServerOptions) {
+export function startHttpServer({ store, events, port, hostname }: HttpServerOptions) {
   const app = new Hono();
 
-  app.use('*', cors());
+  const allowedOrigins = [
+    `http://localhost:${port}`,
+    `http://127.0.0.1:${port}`,
+  ];
+
+  app.use('*', cors({
+    origin: allowedOrigins,
+    allowMethods: ['GET'],
+    maxAge: 86400,
+  }));
+
+  const token = process.env.FORGEFRAME_TOKEN;
+  app.use('/api/*', bearerAuth(token));
 
   // --- Memory endpoints ---
 
@@ -69,6 +83,8 @@ export function startHttpServer({ store, events, port }: HttpServerOptions) {
       memoryCount: store.count(),
       activeSessions: activeSessions.length,
       sessions: activeSessions,
+      pid: process.pid,
+      uptime: process.uptime(),
     });
   });
 
@@ -143,25 +159,39 @@ export function startHttpServer({ store, events, port }: HttpServerOptions) {
     const { resolve, dirname } = await import('path');
     const { fileURLToPath } = await import('url');
     const __dirname = dirname(fileURLToPath(import.meta.url));
-    try {
-      const html = readFileSync(resolve(__dirname, '../../swarm/viewer/index.html'), 'utf-8');
-      return c.html(html);
-    } catch {
-      // Fallback: try from ForgeFrame repo root
-      const { homedir } = await import('os');
+
+    const viewerOverride = process.env.FORGEFRAME_VIEWER_PATH;
+    const candidates = viewerOverride
+      ? [viewerOverride]
+      : [
+          resolve(__dirname, '../../swarm/viewer/index.html'),
+          resolve(__dirname, '../../../swarm/viewer/index.html'),
+        ];
+
+    const csp = [
+      "default-src 'self'",
+      "script-src 'unsafe-inline'",
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+      "font-src https://fonts.gstatic.com",
+      "connect-src 'self'",
+      "img-src 'self' data:",
+    ].join('; ');
+
+    for (const path of candidates) {
       try {
-        const html = readFileSync(resolve(homedir(), 'repos/ForgeFrame/swarm/viewer/index.html'), 'utf-8');
+        const html = readFileSync(path, 'utf-8');
+        c.header('Content-Security-Policy', csp);
         return c.html(html);
-      } catch {
-        return c.text('Viewer not found. Place index.html in swarm/viewer/', 404);
-      }
+      } catch {}
     }
+
+    return c.text('Viewer not found. Set FORGEFRAME_VIEWER_PATH or run from the ForgeFrame repo.', 404);
   });
 
-  const server = serve({ fetch: app.fetch, port });
+  const server = serve({ fetch: app.fetch, port, hostname: hostname ?? '127.0.0.1' });
 
   // Log to stderr so it doesn't interfere with MCP stdio
-  process.stderr.write(`ForgeFrame viewer: http://localhost:${port}\n`);
+  process.stderr.write(`ForgeFrame viewer: http://${hostname ?? '127.0.0.1'}:${port}\n`);
 
   return server;
 }

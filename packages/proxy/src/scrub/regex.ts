@@ -23,6 +23,16 @@ const RULES: RegexRule[] = [
   { pattern: /\b(?:(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\.){3}(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\b/g, category: 'IP' },
   // File paths (Windows: C:\... or Unix: /... or ~/...)
   { pattern: /(?:[A-Z]:\\[\w\\.-]+|~?\/[\w/.-]+)/gi, category: 'PATH' },
+  // Secrets / credentials
+  { pattern: /AKIA[0-9A-Z]{16}/g, category: 'SECRET' },
+  { pattern: /sk-ant-[a-zA-Z0-9_-]{40,}/g, category: 'SECRET' },
+  { pattern: /sk-[a-zA-Z0-9]{20,}/g, category: 'SECRET' },
+  { pattern: /gh[pousr]_[A-Za-z0-9_]{36,}/g, category: 'SECRET' },
+  { pattern: /npm_[A-Za-z0-9]{36,}/g, category: 'SECRET' },
+  { pattern: /(?:password|secret|token|api[_-]?key)\s*[:=]\s*['"]?[^\s'"]{8,}/gi, category: 'SECRET' },
+  { pattern: /-----BEGIN [A-Z ]+ PRIVATE KEY-----/g, category: 'SECRET' },
+  { pattern: /eyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]+/g, category: 'SECRET' },
+  { pattern: /(?:postgres|mysql|mongodb|redis):\/\/[^\s]+:[^\s@]+@/g, category: 'SECRET' },
 ];
 
 export function scrubWithRegex(

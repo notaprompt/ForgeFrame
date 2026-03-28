@@ -23,12 +23,18 @@ const httpPort = process.env.FORGEFRAME_HTTP_PORT
   : undefined;
 
 if (httpPort) {
-  const { startHttpServer } = await import('./http.js');
-  startHttpServer({
-    store: instance.store,
-    events: instance.events,
-    port: httpPort,
-  });
+  const { isDaemonRunning } = await import('./daemon.js');
+  const daemonStatus = isDaemonRunning();
+  if (daemonStatus.running) {
+    process.stderr.write(`ForgeFrame daemon already running on :${daemonStatus.port} (pid ${daemonStatus.pid})\n`);
+  } else {
+    const { startHttpServer } = await import('./http.js');
+    startHttpServer({
+      store: instance.store,
+      events: instance.events,
+      port: httpPort,
+    });
+  }
 }
 
 function shutdown() {

@@ -503,10 +503,10 @@ function addFeedItem(memory, isNew) {
     <div class="tags">
       ${(memory.tags || []).map(t => {
         let cls = 'tag';
-        if (severity && t === 'challenge') cls += ` severity-${severity}`;
-        return `<span class="${cls}">${t}</span>`;
+        if (severity && t === 'challenge') cls += ` severity-${escapeHtml(severity)}`;
+        return `<span class="${cls}">${escapeHtml(t)}</span>`;
       }).join('')}
-      ${severity ? `<span class="tag severity-${severity}">${severity}</span>` : ''}
+      ${severity ? `<span class="tag severity-${escapeHtml(severity)}">${escapeHtml(severity)}</span>` : ''}
     </div>
   `;
 

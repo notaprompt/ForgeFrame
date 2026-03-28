@@ -9,3 +9,5 @@ export { createServer } from './server.js';
 export type { ServerConfig } from './config.js';
 export { ServerEvents } from './events.js';
 export { ProvenanceLogger } from './provenance.js';
+export { isDaemonRunning, stopDaemon, serveDaemon } from './daemon.js';
+export type { DaemonOptions, DaemonStatus } from './daemon.js';

@@ -45,7 +45,7 @@ export function loadConfig(overrides: Partial<ServerConfig> = {}): ServerConfig 
       ?? env('SERVER_NAME')
       ?? 'forgeframe-memory',
     serverVersion: overrides.serverVersion
-      ?? '0.1.0',
+      ?? '0.2.0',
     ollamaUrl: overrides.ollamaUrl
       ?? env('OLLAMA_URL')
       ?? 'http://localhost:11434',

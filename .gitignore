@@ -6,4 +6,9 @@ dist-cjs/
 .env.*
 *.db
 *.db-journal
+*.pid
+daemon.log
 .claude/
+.swarm-worktrees/
+.swarm-output.log
+.done-*

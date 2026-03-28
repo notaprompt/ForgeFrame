@@ -18,6 +18,7 @@ export const TOKEN_CATEGORIES = {
   ORG: 'ORG',
   PROJECT: 'PROJECT',
   CUSTOM: 'CUSTOM',
+  SECRET: 'SECRET',
 } as const;
 
 export type TokenCategory = typeof TOKEN_CATEGORIES[keyof typeof TOKEN_CATEGORIES];

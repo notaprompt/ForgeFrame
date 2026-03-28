@@ -68,7 +68,7 @@ fi
 if $USE_MEMORY; then
   if ! claude mcp list 2>/dev/null | grep -q forgeframe-memory; then
     echo "Warning: ForgeFrame MCP 'forgeframe-memory' not configured. Running without shared memory."
-    echo "  Add it with: claude mcp add forgeframe-memory -e FORGEFRAME_HTTP_PORT=3001 -- node ~/repos/ForgeFrame/packages/server/dist/bin.js"
+    echo "  Add it with: claude mcp add forgeframe-memory -e FORGEFRAME_HTTP_PORT=3001 -- npx @forgeframe/server"
     USE_MEMORY=false
   fi
 fi
@@ -76,13 +76,15 @@ fi
 # Ensure ForgeFrame HTTP server is running for the viewer
 if $USE_MEMORY; then
   if ! curl -s --max-time 2 http://localhost:3001/api/status >/dev/null 2>&1; then
-    echo "Starting ForgeFrame HTTP server for viewer..."
-    FORGEFRAME_HTTP_PORT=3001 node ~/repos/ForgeFrame/packages/server/dist/bin.js </dev/null 2>/dev/null &
+    echo "Starting ForgeFrame daemon..."
+    npx @forgeframe/server start --port 3001 2>/dev/null || {
+      echo "Warning: ForgeFrame daemon failed to start. Viewer won't have live feed."
+    }
     sleep 2
     if curl -s --max-time 2 http://localhost:3001/api/status >/dev/null 2>&1; then
-      echo "ForgeFrame HTTP running on :3001"
+      echo "ForgeFrame daemon running on :3001"
     else
-      echo "Warning: ForgeFrame HTTP failed to start. Viewer won't have live feed."
+      echo "Warning: ForgeFrame HTTP not responding. Viewer won't have live feed."
     fi
   fi
 fi

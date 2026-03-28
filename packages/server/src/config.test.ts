@@ -33,7 +33,7 @@ describe('loadConfig', () => {
     expect(cfg.decayOnStartup).toBe(true);
     expect(cfg.provenancePath).toContain('provenance.jsonl');
     expect(cfg.serverName).toBe('forgeframe-memory');
-    expect(cfg.serverVersion).toBe('0.1.0');
+    expect(cfg.serverVersion).toBe('0.2.0');
   });
 
   it('reads FORGEFRAME_ env vars', () => {
