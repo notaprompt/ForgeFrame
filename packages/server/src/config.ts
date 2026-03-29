@@ -2,7 +2,7 @@
  * @forgeframe/server — Configuration
  */
 
-import { mkdirSync } from 'fs';
+import { mkdirSync, readFileSync, existsSync } from 'fs';
 import { resolve } from 'path';
 import { homedir } from 'os';
 import type { SourceConfig } from './ingest.js';
@@ -21,13 +21,25 @@ export interface ServerConfig {
 }
 
 const FORGEFRAME_DIR = resolve(homedir(), '.forgeframe');
+const CONFIG_FILE = resolve(FORGEFRAME_DIR, 'config.json');
 
 function env(key: string): string | undefined {
   return process.env[`FORGEFRAME_${key}`];
 }
 
+function readConfigFile(): Record<string, any> | null {
+  try {
+    if (existsSync(CONFIG_FILE)) {
+      return JSON.parse(readFileSync(CONFIG_FILE, 'utf-8'));
+    }
+  } catch { /* ignore corrupt config */ }
+  return null;
+}
+
 export function loadConfig(overrides: Partial<ServerConfig> = {}): ServerConfig {
   mkdirSync(FORGEFRAME_DIR, { recursive: true });
+
+  const file = readConfigFile();
 
   return {
     dbPath: overrides.dbPath
@@ -48,9 +60,11 @@ export function loadConfig(overrides: Partial<ServerConfig> = {}): ServerConfig 
       ?? '0.2.0',
     ollamaUrl: overrides.ollamaUrl
       ?? env('OLLAMA_URL')
+      ?? file?.embedding?.url
       ?? 'http://localhost:11434',
     embeddingModel: overrides.embeddingModel
       ?? env('EMBEDDING_MODEL')
+      ?? file?.embedding?.model
       ?? 'nomic-embed-text',
     ingestDir: overrides.ingestDir
       ?? env('INGEST_DIR')

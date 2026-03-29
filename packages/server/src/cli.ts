@@ -11,6 +11,7 @@
  */
 
 import { isDaemonRunning, stopDaemon, serveDaemon } from './daemon.js';
+import { runInit } from './init.js';
 
 const args = process.argv.slice(2);
 const command = args[0];
@@ -90,11 +91,17 @@ async function main() {
       break;
     }
 
+    case 'init': {
+      await runInit();
+      break;
+    }
+
     default:
       process.stderr.write([
         'ForgeFrame CLI',
         '',
         'Usage:',
+        '  forgeframe init                Interactive setup',
         '  forgeframe start [--port N]    Start daemon (background)',
         '  forgeframe stop                Stop daemon',
         '  forgeframe status              Show daemon status',
