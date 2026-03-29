@@ -11,3 +11,7 @@ export { ServerEvents } from './events.js';
 export { ProvenanceLogger } from './provenance.js';
 export { isDaemonRunning, stopDaemon, serveDaemon } from './daemon.js';
 export type { DaemonOptions, DaemonStatus } from './daemon.js';
+export { ForgeAgent } from './agent.js';
+export type { AgentConfig, AgentStep } from './agent.js';
+export { TriggerManager } from './triggers.js';
+export type { CronTrigger, WatchTrigger, Trigger } from './triggers.js';

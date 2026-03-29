@@ -8,10 +8,14 @@
  *   forgeframe stop                               Stop daemon
  *   forgeframe status                             Show daemon status
  *   forgeframe serve [--port N] [--hostname H]    Run daemon in foreground
+ *   forgeframe agent run "task" [--tier T] [--budget N] [--leash L]
+ *   forgeframe agent stop                         Kill running agent
+ *   forgeframe agent log                          Show recent agent runs
  */
 
 import { isDaemonRunning, stopDaemon, serveDaemon } from './daemon.js';
 import { runInit } from './init.js';
+import { runAgent, stopAgent, showAgentLog } from './agent-cli.js';
 
 const args = process.argv.slice(2);
 const command = args[0];
@@ -96,6 +100,27 @@ async function main() {
       break;
     }
 
+    case 'agent': {
+      const sub = args[1];
+      if (sub === 'run') {
+        await runAgent(args.slice(2));
+      } else if (sub === 'stop') {
+        stopAgent();
+      } else if (sub === 'log') {
+        await showAgentLog();
+      } else {
+        process.stderr.write([
+          'Usage:',
+          '  forgeframe agent run "task" [--tier quick|balanced|deep] [--budget N] [--leash ask|auto]',
+          '  forgeframe agent stop',
+          '  forgeframe agent log',
+          '',
+        ].join('\n'));
+        process.exit(sub ? 1 : 0);
+      }
+      break;
+    }
+
     default:
       process.stderr.write([
         'ForgeFrame CLI',
@@ -106,6 +131,9 @@ async function main() {
         '  forgeframe stop                Stop daemon',
         '  forgeframe status              Show daemon status',
         '  forgeframe serve [--port N]    Run in foreground',
+        '  forgeframe agent run "task"    Run agent task',
+        '  forgeframe agent stop          Kill running agent',
+        '  forgeframe agent log           Show recent runs',
         '',
       ].join('\n'));
       process.exit(command ? 1 : 0);

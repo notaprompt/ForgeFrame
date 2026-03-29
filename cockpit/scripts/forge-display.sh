@@ -24,6 +24,26 @@ render() {
     fi
     printf '\n'
 
+    # Agent status
+    local agent_pid_file="$HOME/.forgeframe/agent.pid"
+    local agent_status_file="$HOME/.forgeframe/agent-status.json"
+    if [ -f "$agent_pid_file" ] && kill -0 "$(cat "$agent_pid_file")" 2>/dev/null; then
+        if [ -f "$agent_status_file" ]; then
+            local task step maxSteps cost
+            task=$(grep -o '"task"[[:space:]]*:[[:space:]]*"[^"]*"' "$agent_status_file" | head -1 | sed 's/.*:.*"\(.*\)"/\1/')
+            step=$(grep -o '"step"[[:space:]]*:[[:space:]]*[0-9]*' "$agent_status_file" | head -1 | sed 's/.*:[[:space:]]*//')
+            maxSteps=$(grep -o '"maxSteps"[[:space:]]*:[[:space:]]*[0-9]*' "$agent_status_file" | head -1 | sed 's/.*:[[:space:]]*//')
+            cost=$(grep -o '"cost"[[:space:]]*:[[:space:]]*[0-9.]*' "$agent_status_file" | head -1 | sed 's/.*:[[:space:]]*//')
+            printf ' \033[33m⚡ agent:\033[0m %s (step %s/%s, $%s)\n' \
+                "${task:-running}" "${step:-?}" "${maxSteps:-?}" "${cost:-0.00}"
+        else
+            printf ' \033[33m⚡ agent:\033[0m running\n'
+        fi
+    else
+        printf ' \033[2m ⚡ agent idle\033[0m\n'
+    fi
+    printf '\n'
+
     # Workspaces
     local count=0
     if [ -f "$REGISTRY" ]; then
@@ -44,6 +64,7 @@ render() {
     printf '\033[2m forge <#>   switch\033[0m\n'
     printf '\033[2m forge stop  close\033[0m\n'
     printf '\033[2m forge mem   memories\033[0m\n'
+    printf '\033[2m forge agent run task\033[0m\n'
 }
 
 render

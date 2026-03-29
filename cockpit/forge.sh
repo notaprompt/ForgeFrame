@@ -77,8 +77,28 @@ forge() {
             rm -f ~/.forge-sessions
             echo "all sessions nuked"
             ;;
+        agent)
+            case "$2" in
+                run)
+                    shift 2
+                    forgeframe agent run "$@"
+                    ;;
+                stop)
+                    forgeframe agent stop
+                    ;;
+                log)
+                    forgeframe agent log
+                    ;;
+                *)
+                    echo "usage: forge agent [run|stop|log]"
+                    echo "  run \"task\"    execute a task"
+                    echo "  stop          kill running agent"
+                    echo "  log           show recent runs"
+                    ;;
+            esac
+            ;;
         *)
-            echo "usage: forge [new|show|mem|stop|nuke|<N>]"
+            echo "usage: forge [new|show|mem|agent|stop|nuke|<N>]"
             ;;
     esac
 }
