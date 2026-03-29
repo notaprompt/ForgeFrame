@@ -146,7 +146,7 @@ Helper:
 /**
  * Parse FORGEFRAME_FALLBACK_DIRS env var.
  * Format: "name:path:tier:splitPattern;name2:path2:tier2:splitPattern2"
- * Example: "auto-memory:~/.claude/projects/-Users-acamp/memory:2:## ;forge-ops:/Users/acamp/forge-ops/todos:3:### "
+ * Example: "auto-memory:~/.claude/projects/memory:2:## ;forge-ops:~/forge-ops/todos:3:### "
  */
 function parseFallbackDirs(value: string | undefined): ServerConfig['fallbackDirs'] | undefined {
   if (!value) return undefined;
@@ -313,12 +313,12 @@ if (config.fallbackDirs) {
 
 ---
 
-## Configuration for Alex's Setup
+## Example Configuration
 
 Set in MCP config or env:
 
 ```
-FORGEFRAME_FALLBACK_DIRS="auto-memory:~/.claude/projects/-Users-acamp/memory:2:## ;forge-ops:/Users/acamp/forge-ops/todos:3:### "
+FORGEFRAME_FALLBACK_DIRS="auto-memory:~/.claude/projects/memory:2:## ;forge-ops:~/forge-ops/todos:3:### "
 ```
 
 ---

@@ -8,7 +8,8 @@
   "types": "dist/index.d.ts",
   "bin": {
     "forgeframe-memory": "./dist/bin.js",
-    "forgeframe": "./dist/cli.js"
+    "forgeframe": "./dist/cli.js",
+    "forgeframe-session-extract": "./dist/session-extract.js"
   },
   "exports": {
     ".": {
