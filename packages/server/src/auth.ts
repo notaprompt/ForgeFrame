@@ -2,7 +2,7 @@
  * @forgeframe/server — Bearer Token Auth Middleware
  *
  * Optional auth via FORGEFRAME_TOKEN env var.
- * SSE clients (EventSource) cannot set headers, so token is also accepted as a query param.
+ * Bearer header only — query param auth removed to prevent token leakage in logs/referers.
  */
 
 import { timingSafeEqual } from 'crypto';

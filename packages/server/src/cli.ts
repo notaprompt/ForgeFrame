@@ -77,7 +77,16 @@ async function main() {
     case 'serve': {
       const port = parseInt(flag('port', '3001'), 10);
       const hostname = flag('hostname', '127.0.0.1');
-      await serveDaemon({ port, hostname });
+      try {
+        await serveDaemon({ port, hostname });
+      } catch (err: any) {
+        if (err?.code === 'EADDRINUSE') {
+          process.stderr.write(`Port ${port} is already in use. Is another daemon running?\n`);
+        } else {
+          process.stderr.write(`Failed to start daemon: ${err?.message ?? err}\n`);
+        }
+        process.exit(1);
+      }
       break;
     }
 

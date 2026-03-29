@@ -116,6 +116,7 @@ export async function serveDaemon(opts: DaemonOptions): Promise<void> {
   process.on('SIGINT', shutdown);
   process.on('SIGTERM', shutdown);
   process.on('SIGHUP', shutdown);
+  process.on('SIGPIPE', () => {});
 
   // Block until signal
   await new Promise(() => {});
