@@ -1,0 +1,20 @@
+layout {
+    pane size=1 borderless=true {
+        plugin location="compact-bar"
+    }
+    pane split_direction="vertical" {
+        pane size="80%" start_suspended=false {
+            command "claude"
+        }
+        pane split_direction="horizontal" size="20%" {
+            pane size="60%" name="forgeframe" start_suspended=false {
+                command "/bin/bash"
+                args "-c" "$FORGE_DIR/scripts/forge-display.sh"
+            }
+            pane size="40%" name="shell" start_suspended=false {
+                command "/bin/bash"
+                args "-c" "printf '\\e]0;Forge\\a'; exec $SHELL -l"
+            }
+        }
+    }
+}
