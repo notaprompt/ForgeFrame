@@ -56,6 +56,15 @@ export function createServer(overrides?: Partial<ServerConfig>): ServerInstance 
     events.emit('memory:decayed', 0);
   }
 
+  // Warn if Ollama is unreachable (semantic search degrades to keyword-only)
+  embedder.embed('health-check').then((result) => {
+    if (!result) {
+      process.stderr.write(
+        `[forgeframe] warning: Ollama not reachable at ${config.ollamaUrl} — semantic search disabled, keyword-only mode active\n`,
+      );
+    }
+  });
+
   // All ingestion runs sequentially in a single async chain
   (async () => {
     if (config.ingestDir) {

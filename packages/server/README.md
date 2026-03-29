@@ -73,6 +73,7 @@ events.on('memory:created', (memory) => {
 | `memory_update` | Update by ID | `id` (string, required), `content` (string), `tags` (string[]), `metadata` (object) |
 | `memory_list_by_tag` | Filter by tag | `tag` (string, required), `limit` (number, default 50) |
 | `memory_delete` | Delete by ID | `id` (string, required) |
+| `memory_reindex` | Backfill embeddings | `limit` (number, default 100) |
 | `memory_status` | Server status | none |
 | `session_start` | Start new session | `metadata` (object) |
 | `session_end` | End active session | none |
@@ -111,7 +112,7 @@ MCP Client (Claude Desktop, Cursor, etc.)
     |
 @forgeframe/server (this package)
     |
-    |-- tools/      11 MCP tools (7 memory + 4 session)
+    |-- tools/      12 MCP tools (8 memory + 4 session)
     |-- resources/  2 MCP resources (recent, search)
     |-- prompts/    1 MCP prompt (memory_context)
     |-- provenance  append-only JSONL audit trail

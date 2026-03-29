@@ -4,7 +4,7 @@
  * Append-only JSONL audit trail. Foundation for compliance extensions.
  */
 
-import { appendFileSync } from 'fs';
+import { appendFile } from 'fs/promises';
 
 export interface ProvenanceEntry {
   timestamp: number;
@@ -22,7 +22,7 @@ export class ProvenanceLogger {
     this._path = path;
   }
 
-  log(entry: ProvenanceEntry): void {
-    appendFileSync(this._path, JSON.stringify(entry) + '\n');
+  log(entry: ProvenanceEntry): Promise<void> {
+    return appendFile(this._path, JSON.stringify(entry) + '\n').catch(() => {});
   }
 }

@@ -32,12 +32,6 @@ describe('bearerAuth', () => {
     expect(res.status).toBe(200);
   });
 
-  it('accepts valid query param token (for SSE clients)', async () => {
-    const app = createApp('secret-token');
-    const res = await app.request('/api/status?token=secret-token');
-    expect(res.status).toBe(200);
-  });
-
   it('rejects wrong token', async () => {
     const app = createApp('secret-token');
     const res = await app.request('/api/status', {
@@ -46,9 +40,17 @@ describe('bearerAuth', () => {
     expect(res.status).toBe(401);
   });
 
-  it('rejects wrong query param token', async () => {
+  it('rejects query param token (no longer accepted)', async () => {
     const app = createApp('secret-token');
-    const res = await app.request('/api/status?token=wrong');
+    const res = await app.request('/api/status?token=secret-token');
+    expect(res.status).toBe(401);
+  });
+
+  it('rejects token with different length', async () => {
+    const app = createApp('secret-token');
+    const res = await app.request('/api/status', {
+      headers: { Authorization: 'Bearer short' },
+    });
     expect(res.status).toBe(401);
   });
 });

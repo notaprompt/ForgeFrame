@@ -21,7 +21,7 @@ describe('ProvenanceLogger', () => {
     files.length = 0;
   });
 
-  it('writes a single parseable JSONL line', () => {
+  it('writes a single parseable JSONL line', async () => {
     const path = tmpFile();
     const logger = new ProvenanceLogger(path);
     const entry: ProvenanceEntry = {
@@ -31,7 +31,7 @@ describe('ProvenanceLogger', () => {
       sessionId: 'sess-1',
     };
 
-    logger.log(entry);
+    await logger.log(entry);
 
     const raw = readFileSync(path, 'utf-8').trim();
     const parsed = JSON.parse(raw);
@@ -40,12 +40,12 @@ describe('ProvenanceLogger', () => {
     expect(parsed.sessionId).toBe('sess-1');
   });
 
-  it('appends multiple newline-delimited entries', () => {
+  it('appends multiple newline-delimited entries', async () => {
     const path = tmpFile();
     const logger = new ProvenanceLogger(path);
 
     for (let i = 0; i < 3; i++) {
-      logger.log({ timestamp: Date.now(), action: `action-${i}`, sessionId: 'sess' });
+      await logger.log({ timestamp: Date.now(), action: `action-${i}`, sessionId: 'sess' });
     }
 
     const lines = readFileSync(path, 'utf-8').trim().split('\n');
@@ -55,11 +55,11 @@ describe('ProvenanceLogger', () => {
     });
   });
 
-  it('omits optional fields when not provided', () => {
+  it('omits optional fields when not provided', async () => {
     const path = tmpFile();
     const logger = new ProvenanceLogger(path);
 
-    logger.log({ timestamp: 1, action: 'test', sessionId: 's' });
+    await logger.log({ timestamp: 1, action: 'test', sessionId: 's' });
 
     const parsed = JSON.parse(readFileSync(path, 'utf-8').trim());
     expect(parsed.memoryId).toBeUndefined();

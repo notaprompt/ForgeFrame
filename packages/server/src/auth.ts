@@ -5,17 +5,24 @@
  * SSE clients (EventSource) cannot set headers, so token is also accepted as a query param.
  */
 
+import { timingSafeEqual } from 'crypto';
 import type { MiddlewareHandler } from 'hono';
+
+function safeEqual(a: string, b: string): boolean {
+  const bufA = Buffer.from(a);
+  const bufB = Buffer.from(b);
+  if (bufA.length !== bufB.length) return false;
+  return timingSafeEqual(bufA, bufB);
+}
 
 export function bearerAuth(token: string | undefined): MiddlewareHandler {
   if (!token) return async (_c, next) => next();
 
   return async (c, next) => {
     const header = c.req.header('Authorization');
-    const queryToken = c.req.query('token');
-    const provided = header?.replace('Bearer ', '') ?? queryToken;
+    const provided = header?.replace('Bearer ', '') ?? '';
 
-    if (provided !== token) {
+    if (!provided || !safeEqual(provided, token)) {
       return c.json({ error: 'Unauthorized' }, 401);
     }
 

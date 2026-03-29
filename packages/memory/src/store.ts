@@ -160,13 +160,24 @@ export class MemoryStore {
   }
 
   search(text: string, limit = 20): Memory[] {
+    // Sanitize FTS5 input: strip special characters, quote each term
+    const sanitized = text
+      .replace(/[^\w\s]/g, ' ')
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean)
+      .map((t) => `"${t}"`)
+      .join(' ');
+
+    if (!sanitized) return [];
+
     const rows = this._db.prepare(`
       SELECT m.* FROM memories m
       JOIN memories_fts f ON m.rowid = f.rowid
       WHERE memories_fts MATCH ?
       ORDER BY rank
       LIMIT ?
-    `).all(text, limit) as any[];
+    `).all(sanitized, limit) as any[];
 
     return rows.map((r) => this._rowToMemory(r));
   }
