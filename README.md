@@ -1,21 +1,26 @@
 # ForgeFrame
 
-**Constitutional memory for AI agents.**
+**Local intelligence infrastructure. Your data stays on your machine.**
 
-Some memories decay. Some don't. You decide which.
+I needed AI agents that remember things between sessions, route to the right model without me thinking about it, scrub sensitive data before it leaves my machine, and coordinate with each other on real codebases. Nothing did all of that. So I built it.
 
-ForgeFrame gives AI agents persistent, local-first memory that strengthens on access, weakens over time, and protects what matters. Principles and voice are constitutional -- they never decay, no matter how old they are. Everything else follows biological memory: use it or lose it.
-
-Works with Claude Desktop, Cursor, and anything that speaks MCP.
+ForgeFrame is four packages, a swarm orchestrator, and a terminal cockpit. One repo. One install. Everything runs locally. The database is a SQLite file on your disk. You own it.
 
 ---
 
-## What makes it different
+## What's in the box
 
-- **Constitutional decay.** Tag a memory as `principle` or `voice` and it holds at full strength forever. Everything else decays at 2% per day, floor of 10%. Access strengthens.
-- **Semantic + keyword retrieval.** Combined FTS5 full-text search and cosine similarity via Ollama embeddings. Falls back to keyword-only when Ollama is unavailable.
-- **Session isolation.** Multiple agents can share one database with concurrent sessions. Each process manages its own session -- no clobbering.
-- **Local-first.** SQLite on your machine. Nothing leaves without your knowledge. Provenance logged to JSONL.
+**Memory.** Persistent semantic memory with strength decay. Memories weaken over time unless you use them — access reinforces, neglect fades. Tag something as `principle` and it holds at full strength forever. Constitutional memory. The system gets more opinionated about what matters, not less. SQLite + FTS5 with optional Ollama embeddings for semantic search.
+
+**Router.** Tier-based model dispatch. Register any model — Anthropic, OpenAI-compatible, Ollama, your own endpoint. The router reads intent signals in your message and picks the tier: quick questions go to the cheap model, deep analysis goes to the big one. Override when you want. Auto-route when you don't.
+
+**Proxy.** Localhost PII scrubber. Sits between you and the cloud. Regex tier, dictionary tier, local LLM tier. Strips names, emails, credentials, patterns before anything leaves your machine. Rehydrates on the way back. You send the thought, not the identity.
+
+**Server.** MCP server exposing 12 tools (8 memory, 4 session) over stdio. HTTP daemon mode for the REST API and live viewer. Works with Claude Desktop, Claude Code, Cursor, and anything that speaks MCP.
+
+**Swarm.** Multi-agent orchestration. Launch builders and a skeptic into isolated git worktrees with shared memory. The builders write code. The skeptic stress-tests everything they produce. Constitutional constraints keep them honest. All agents share memory through ForgeFrame — findings compound across runs.
+
+**Forge.** Terminal cockpit. One command launches your workspace. `forge new` spawns sessions. `forge 2` switches between them. Auto-names tabs from your model and project. ForgeFrame daemon runs in a side pane so you see what's alive. Shell commands, Zellij layouts, Claude Code hooks. The thing that makes all of this feel like one system.
 
 ---
 
@@ -26,27 +31,31 @@ git clone https://github.com/notaprompt/ForgeFrame.git
 cd ForgeFrame
 npm install
 npm run build
-npm test
 ```
 
-### Add to Claude Desktop
+### Add memory to Claude Code
 
 ```bash
 claude mcp add forgeframe-memory -- npx @forgeframe/server
 ```
 
-Or install from npm:
+### Start the daemon
 
 ```bash
-npm install -g @forgeframe/server
-claude mcp add forgeframe-memory -- forgeframe-memory
+forgeframe start
+# http://localhost:3001 — viewer, API, SSE feed
 ```
 
-### Start the viewer daemon
+### Launch the cockpit
 
 ```bash
-forgeframe start --port 3001
-# Open http://localhost:3001 for the live swarm viewer
+forge
+```
+
+### Run a swarm
+
+```bash
+./swarm/launch.sh ~/my-project "refactor the auth system" --builders 3
 ```
 
 ---
@@ -54,97 +63,79 @@ forgeframe start --port 3001
 ## Architecture
 
 ```
-                        MCP (stdio)
-Claude / Cursor ──────────────────── @forgeframe/server
-                                          │
-                                    @forgeframe/memory
-                                          │
-                                    ~/.forgeframe/memory.db
-                                          │
-                              ┌───────────┴───────────┐
-                              │                       │
-                         FTS5 search           Ollama embeddings
-                        (always works)       (semantic, optional)
+You
+ │
+ ├── forge (cockpit)
+ │    ├── forge new          → spawn workspace
+ │    ├── forge 2            → switch context
+ │    ├── forge show         → list sessions
+ │    └── forge mem          → query memory
+ │
+ ├── @forgeframe/proxy       → scrub PII before cloud
+ ├── @forgeframe/core        → route to right model
+ ├── @forgeframe/server      → MCP tools + HTTP daemon
+ └── @forgeframe/memory      → SQLite, FTS5, decay, embeddings
+      │
+      └── ~/.forgeframe/memory.db   ← yours
 ```
-
-The server exposes 12 MCP tools (8 memory, 4 session) over stdio. Optionally runs an HTTP daemon for the swarm viewer and REST API.
 
 ---
 
 ## Packages
 
-| Package | License | Description |
+| Package | License | What it does |
 |---------|---------|-------------|
-| `@forgeframe/memory` | MIT | SQLite + FTS5 memory store, embeddings, decay, sessions |
-| `@forgeframe/server` | MIT | MCP server, HTTP API, daemon CLI |
-| `@forgeframe/core` | AGPL-3.0 | Tier-based model routing, provider registry |
-| `@forgeframe/proxy` | AGPL-3.0 | PII scrub pipeline (regex, dictionary, local LLM) |
-
-Memory and server are the open-source core. Core and proxy are copyleft infrastructure.
+| `@forgeframe/memory` | MIT | Memory store. Decay, reinforcement, embeddings, sessions. |
+| `@forgeframe/server` | MIT | MCP server. HTTP daemon. REST API. SSE feed. |
+| `@forgeframe/core` | AGPL-3.0 | Model router. Tier dispatch. Provider registry. |
+| `@forgeframe/proxy` | AGPL-3.0 | PII scrub. Regex, dictionary, local LLM. |
 
 ---
 
 ## Configuration
 
-All configuration via environment variables:
-
-| Variable | Default | Description |
+| Variable | Default | What it does |
 |----------|---------|-------------|
-| `FORGEFRAME_DB_PATH` | `~/.forgeframe/memory.db` | SQLite database path |
-| `FORGEFRAME_OLLAMA_URL` | `http://localhost:11434` | Ollama endpoint for embeddings |
-| `FORGEFRAME_EMBEDDING_MODEL` | `nomic-embed-text` | Embedding model name |
-| `FORGEFRAME_DECAY_ON_STARTUP` | `true` | Apply strength decay when server starts |
-| `FORGEFRAME_HTTP_PORT` | (disabled) | Enable HTTP server on this port |
-| `FORGEFRAME_TOKEN` | (disabled) | Bearer token for HTTP API auth |
-| `FORGEFRAME_INGEST_DIR` | (disabled) | Auto-index markdown files at startup |
-| `FORGEFRAME_VIEWER_PATH` | (auto-detect) | Path to swarm viewer HTML |
+| `FORGEFRAME_DB_PATH` | `~/.forgeframe/memory.db` | Where the database lives |
+| `FORGEFRAME_OLLAMA_URL` | `http://localhost:11434` | Ollama for embeddings |
+| `FORGEFRAME_EMBEDDING_MODEL` | `nomic-embed-text` | Which embedding model |
+| `FORGEFRAME_DECAY_ON_STARTUP` | `true` | Apply strength decay on boot |
+| `FORGEFRAME_HTTP_PORT` | disabled | Enable HTTP daemon |
+| `FORGEFRAME_TOKEN` | disabled | Bearer auth for API |
 
 ---
 
-## Daemon mode
+## In production
 
-The HTTP server runs as a persistent daemon, independent of any Claude session.
+ForgeFrame is running right now on my machine. 325+ memories across 90+ sessions. Every Claude Code session logs to it automatically. The swarm orchestrator has run concurrent agents across multiple repos — ForgeFrame itself, Reframed, a research project — with shared memory coordination. The cockpit is how I manage all of it.
 
-```bash
-forgeframe start              # start daemon (background, port 3001)
-forgeframe start --port 4000  # custom port
-forgeframe status             # check if running
-forgeframe stop               # stop daemon
-forgeframe serve              # run in foreground (debug)
-```
-
-The daemon serves:
-- `/api/status` -- memory count, active sessions, uptime
-- `/api/memories/recent` -- recent memories
-- `/api/memories/search?q=...` -- search
-- `/api/events` -- SSE live feed (memory created/updated/deleted, sessions)
-- `/` -- swarm viewer (real-time pixel visualization)
-
-Set `FORGEFRAME_TOKEN` for bearer auth on all API endpoints.
+I built this because I needed it. I use it every day. It works.
 
 ---
 
-## Swarm orchestration
+## What this is not
 
-ForgeFrame includes a swarm launcher that coordinates multiple Claude Code agents in isolated git worktrees with shared memory.
+This is not a hosted service. There is no cloud component in this repo. Your data does not leave your machine unless you point the proxy at a cloud model, and even then the proxy scrubs it first.
 
-```bash
-./swarm/launch.sh ~/project "refactor the auth system" --builders 3
-```
+This is not a framework for building chatbots. This is infrastructure for people who build with AI and want to own what they build on.
 
-Each builder gets full tool access. A skeptic agent runs in parallel with read-only access, stress-testing everything. All agents share memory through ForgeFrame MCP.
+This is not maintained by a team. It's maintained by me. I use it, so I fix it. If it's useful to you, use it. If it breaks, tell me.
 
 ---
 
-## API cost note
+## API costs
 
-ForgeFrame uses Ollama for embeddings by default -- **local inference, no API costs**. If you configure a cloud embedding provider, memory operations will incur costs proportional to usage. The MCP server itself makes no external API calls.
+ForgeFrame uses Ollama for embeddings — local inference, no API costs. The MCP server makes no external calls. If you configure cloud providers through the router, those costs are between you and the provider. A typical swarm run with 3 builders and 1 skeptic costs roughly what 4 concurrent Claude Code sessions cost.
 
 ---
 
 ## License
 
-- `packages/memory/` and `packages/server/` -- [MIT](LICENSE-MIT)
-- `packages/core/` and `packages/proxy/` -- [AGPL-3.0](LICENSE-AGPL)
+`packages/memory/` and `packages/server/` — [MIT](LICENSE-MIT)
+`packages/core/` and `packages/proxy/` — [AGPL-3.0](LICENSE-AGPL)
 
-The primitive is open. The infrastructure that protects it is copyleft.
+The memory is yours. The infrastructure that protects it is copyleft.
+
+---
+
+Nothing invented. Everything reframed.
