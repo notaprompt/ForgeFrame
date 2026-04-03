@@ -34,3 +34,4 @@ export { ProxyPipeline } from './pipeline.js';
 export type { PipelineConfig } from './pipeline.js';
 export { createProxyServer, startProxyServer } from './proxy-server.js';
 export type { ProxyServerOptions } from './proxy-server.js';
+export { PROXY_ORGAN_MANIFEST, createProxyOrganLifecycle } from './organ.js';

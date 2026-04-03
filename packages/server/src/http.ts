@@ -30,12 +30,29 @@ export function startHttpServer({ store, events, port, hostname }: HttpServerOpt
 
   app.use('*', cors({
     origin: allowedOrigins,
-    allowMethods: ['GET'],
+    allowMethods: ['GET', 'POST'],
     maxAge: 86400,
   }));
 
   const token = process.env.FORGEFRAME_TOKEN;
   app.use('/api/*', bearerAuth(token));
+
+  // --- Memory write endpoint ---
+
+  app.post('/api/memories', async (c) => {
+    const body = await c.req.json<{ content: string; tags?: string[]; strength?: number; metadata?: Record<string, unknown> }>();
+    if (!body.content) return c.json({ error: 'content required' }, 400);
+    const memory = store.create({
+      content: body.content,
+      tags: body.tags,
+      metadata: body.metadata,
+    });
+    if (typeof body.strength === 'number' && body.strength < 1.0) {
+      store.resetStrength(memory.id, body.strength);
+    }
+    events.emit('memory:created', memory);
+    return c.json({ id: memory.id, strength: body.strength ?? 1.0 }, 201);
+  });
 
   // --- Memory endpoints ---
 

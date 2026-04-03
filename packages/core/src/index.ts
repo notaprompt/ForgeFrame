@@ -1,3 +1,12 @@
 export * from './types.js';
+export * from './organ-types.js';
+export * from './lora-types.js';
 export { ForgeFrameRouter } from './router.js';
 export * from './providers/index.js';
+export { OrganRegistryImpl } from './organ-registry.js';
+export { OrganEvents } from './organ-events.js';
+export type { OrganEventMap } from './organ-events.js';
+export { detectResourceBudget } from './resource-budget.js';
+export { ROUTER_ORGAN_MANIFEST, createRouterOrganLifecycle } from './router-organ.js';
+export { CapabilityRouter } from './capability-router.js';
+export type { RoutingDecision } from './capability-router.js';

@@ -18,6 +18,15 @@ export interface ServerConfig {
   embeddingModel: string;
   ingestDir?: string;
   sources?: SourceConfig[];
+
+  // Distillery intake
+  distilleryDbPath?: string;
+  distilleryPollMs?: number;
+
+  // LoRA pipeline
+  loraBaseModel?: string;
+  loraOutputDir?: string;
+  loraMlxLmPath?: string;
 }
 
 const FORGEFRAME_DIR = resolve(homedir(), '.forgeframe');
@@ -72,6 +81,20 @@ export function loadConfig(overrides: Partial<ServerConfig> = {}): ServerConfig 
     sources: overrides.sources
       ?? parseSources(env('SOURCES'))
       ?? undefined,
+    distilleryDbPath: overrides.distilleryDbPath
+      ?? env('DISTILLERY_DB')
+      ?? undefined,
+    distilleryPollMs: overrides.distilleryPollMs
+      ?? (env('DISTILLERY_POLL') ? parseInt(env('DISTILLERY_POLL')!, 10) : undefined),
+    loraBaseModel: overrides.loraBaseModel
+      ?? env('LORA_BASE_MODEL')
+      ?? undefined,
+    loraOutputDir: overrides.loraOutputDir
+      ?? env('LORA_OUTPUT_DIR')
+      ?? resolve(homedir(), '.forgeframe', 'lora'),
+    loraMlxLmPath: overrides.loraMlxLmPath
+      ?? env('LORA_MLX_PATH')
+      ?? 'python',
   };
 }
 

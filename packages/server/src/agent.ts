@@ -7,8 +7,8 @@
  */
 
 import { EventEmitter } from 'events';
-import { ForgeFrameRouter, ProviderRegistry } from '@forgeframe/core';
-import type { Tier, ResolvedModel, Message, Model } from '@forgeframe/core';
+import { ForgeFrameRouter, ProviderRegistry, CapabilityRouter } from '@forgeframe/core';
+import type { Tier, ResolvedModel, Message, Model, OrganRegistry } from '@forgeframe/core';
 
 // -- Interfaces --
 
@@ -45,16 +45,22 @@ export class ForgeAgent {
   private _token: string | undefined;
   private _aborted = false;
 
+  private _capabilityRouter: CapabilityRouter | null = null;
+
   constructor(opts: {
     router: ForgeFrameRouter;
     registry: ProviderRegistry;
     daemonUrl?: string;
     token?: string;
+    organRegistry?: OrganRegistry;
   }) {
     this._router = opts.router;
     this._registry = opts.registry;
     this._daemonUrl = opts.daemonUrl ?? DEFAULTS.daemonUrl;
     this._token = opts.token;
+    if (opts.organRegistry) {
+      this._capabilityRouter = new CapabilityRouter(opts.organRegistry);
+    }
   }
 
   async run(config: AgentConfig): Promise<AgentStep[]> {
@@ -163,7 +169,28 @@ export class ForgeAgent {
         };
       }
     }
-    // Let the router auto-detect from the task string
+
+    // Try capability-based routing first if available
+    if (this._capabilityRouter) {
+      const matches = this._capabilityRouter.route(task);
+      if (matches.length > 0) {
+        const top = matches[0];
+        // Map organ match back to a ResolvedModel for the existing pipeline
+        const tier: Tier = top.capability.speed === 'fast' || top.capability.speed === 'instant'
+          ? 'quick'
+          : top.capability.speed === 'slow'
+            ? 'deep'
+            : 'balanced';
+        return {
+          provider: top.organ.id,
+          modelId: top.organ.id,
+          tier,
+          auto: true,
+        };
+      }
+    }
+
+    // Fallback to legacy router
     return this._router.resolveModel(task);
   }
 

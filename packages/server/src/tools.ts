@@ -11,6 +11,20 @@ import type { ServerConfig } from './config.js';
 
 const startTime = Date.now();
 
+type ToolResult = { content: Array<{ type: 'text'; text: string }>; isError?: boolean };
+
+function toolResult(data: unknown): ToolResult {
+  return { content: [{ type: 'text' as const, text: JSON.stringify(data) }] };
+}
+
+function toolError(err: unknown): ToolResult {
+  const message = err instanceof Error ? err.message : String(err);
+  return {
+    content: [{ type: 'text' as const, text: JSON.stringify({ error: message }) }],
+    isError: true,
+  };
+}
+
 export function registerTools(
   server: McpServer,
   store: MemoryStore,
@@ -32,32 +46,34 @@ export function registerTools(
       metadata: z.record(z.unknown()).optional().describe('Arbitrary metadata'),
     },
     async ({ content, tags, metadata }) => {
-      let embedding: number[] | undefined;
-      if (embedder) {
-        const vec = await embedder.embed(content);
-        if (vec) embedding = vec;
+      try {
+        let embedding: number[] | undefined;
+        if (embedder) {
+          const vec = await embedder.embed(content);
+          if (vec) embedding = vec;
+        }
+
+        const memory = store.create({
+          content,
+          embedding,
+          tags: tags ?? [],
+          metadata: metadata ?? {},
+          sessionId: sessionRef.current.id,
+        });
+
+        provenance.log({
+          timestamp: Date.now(),
+          action: 'memory_save',
+          memoryId: memory.id,
+          sessionId: sessionRef.current.id,
+        });
+
+        events.emit('memory:created', memory);
+
+        return toolResult(memory);
+      } catch (err) {
+        return toolError(err);
       }
-
-      const memory = store.create({
-        content,
-        embedding,
-        tags: tags ?? [],
-        metadata: metadata ?? {},
-        sessionId: sessionRef.current.id,
-      });
-
-      provenance.log({
-        timestamp: Date.now(),
-        action: 'memory_save',
-        memoryId: memory.id,
-        sessionId: sessionRef.current.id,
-      });
-
-      events.emit('memory:created', memory);
-
-      return {
-        content: [{ type: 'text' as const, text: JSON.stringify(memory) }],
-      };
     },
   );
 
@@ -71,33 +87,35 @@ export function registerTools(
       minStrength: z.number().optional().describe('Minimum memory strength (0-1)'),
     },
     async ({ query, limit, tags, minStrength }) => {
-      const results = await retriever.semanticQuery({
-        text: query,
-        limit: limit ?? 10,
-        tags,
-        minStrength,
-      });
+      try {
+        const results = await retriever.semanticQuery({
+          text: query,
+          limit: limit ?? 10,
+          tags,
+          minStrength,
+        });
 
-      provenance.log({
-        timestamp: Date.now(),
-        action: 'memory_search',
-        query,
-        sessionId: sessionRef.current.id,
-        metadata: { resultCount: results.length },
-      });
+        provenance.log({
+          timestamp: Date.now(),
+          action: 'memory_search',
+          query,
+          sessionId: sessionRef.current.id,
+          metadata: { resultCount: results.length },
+        });
 
-      const formatted = results.map((r) => ({
-        id: r.memory.id,
-        content: r.memory.content,
-        score: r.score,
-        strength: r.memory.strength,
-        tags: r.memory.tags,
-        createdAt: r.memory.createdAt,
-      }));
+        const formatted = results.map((r) => ({
+          id: r.memory.id,
+          content: r.memory.content,
+          score: r.score,
+          strength: r.memory.strength,
+          tags: r.memory.tags,
+          createdAt: r.memory.createdAt,
+        }));
 
-      return {
-        content: [{ type: 'text' as const, text: JSON.stringify(formatted) }],
-      };
+        return toolResult(formatted);
+      } catch (err) {
+        return toolError(err);
+      }
     },
   );
 
@@ -108,19 +126,21 @@ export function registerTools(
       limit: z.number().optional().describe('Number of memories to return (default 20)'),
     },
     async ({ limit }) => {
-      const memories = store.getRecent(limit ?? 20);
+      try {
+        const memories = store.getRecent(limit ?? 20);
 
-      const formatted = memories.map((m) => ({
-        id: m.id,
-        content: m.content,
-        strength: m.strength,
-        tags: m.tags,
-        createdAt: m.createdAt,
-      }));
+        const formatted = memories.map((m) => ({
+          id: m.id,
+          content: m.content,
+          strength: m.strength,
+          tags: m.tags,
+          createdAt: m.createdAt,
+        }));
 
-      return {
-        content: [{ type: 'text' as const, text: JSON.stringify(formatted) }],
-      };
+        return toolResult(formatted);
+      } catch (err) {
+        return toolError(err);
+      }
     },
   );
 
@@ -134,32 +154,32 @@ export function registerTools(
       metadata: z.record(z.unknown()).optional().describe('New metadata (replaces existing)'),
     },
     async ({ id, content, tags, metadata }) => {
-      let embedding: number[] | undefined;
-      if (content && embedder) {
-        const vec = await embedder.embed(content);
-        if (vec) embedding = vec;
+      try {
+        let embedding: number[] | undefined;
+        if (content && embedder) {
+          const vec = await embedder.embed(content);
+          if (vec) embedding = vec;
+        }
+
+        const updated = store.update(id, { content, embedding, tags, metadata });
+
+        if (!updated) {
+          return toolResult({ error: 'Memory not found' });
+        }
+
+        provenance.log({
+          timestamp: Date.now(),
+          action: 'memory_update',
+          memoryId: id,
+          sessionId: sessionRef.current.id,
+        });
+
+        events.emit('memory:updated', updated);
+
+        return toolResult(updated);
+      } catch (err) {
+        return toolError(err);
       }
-
-      const updated = store.update(id, { content, embedding, tags, metadata });
-
-      if (!updated) {
-        return {
-          content: [{ type: 'text' as const, text: JSON.stringify({ error: 'Memory not found' }) }],
-        };
-      }
-
-      provenance.log({
-        timestamp: Date.now(),
-        action: 'memory_update',
-        memoryId: id,
-        sessionId: sessionRef.current.id,
-      });
-
-      events.emit('memory:updated', updated);
-
-      return {
-        content: [{ type: 'text' as const, text: JSON.stringify(updated) }],
-      };
     },
   );
 
@@ -171,19 +191,21 @@ export function registerTools(
       limit: z.number().optional().describe('Max results (default 50)'),
     },
     async ({ tag, limit }) => {
-      const memories = store.listByTag(tag, limit ?? 50);
+      try {
+        const memories = store.listByTag(tag, limit ?? 50);
 
-      const formatted = memories.map((m) => ({
-        id: m.id,
-        content: m.content,
-        strength: m.strength,
-        tags: m.tags,
-        createdAt: m.createdAt,
-      }));
+        const formatted = memories.map((m) => ({
+          id: m.id,
+          content: m.content,
+          strength: m.strength,
+          tags: m.tags,
+          createdAt: m.createdAt,
+        }));
 
-      return {
-        content: [{ type: 'text' as const, text: JSON.stringify(formatted) }],
-      };
+        return toolResult(formatted);
+      } catch (err) {
+        return toolError(err);
+      }
     },
   );
 
@@ -194,22 +216,24 @@ export function registerTools(
       id: z.string().describe('Memory ID to delete'),
     },
     async ({ id }) => {
-      const existed = store.delete(id);
+      try {
+        const existed = store.delete(id);
 
-      if (existed) {
-        provenance.log({
-          timestamp: Date.now(),
-          action: 'memory_delete',
-          memoryId: id,
-          sessionId: sessionRef.current.id,
-        });
+        if (existed) {
+          provenance.log({
+            timestamp: Date.now(),
+            action: 'memory_delete',
+            memoryId: id,
+            sessionId: sessionRef.current.id,
+          });
 
-        events.emit('memory:deleted', id);
+          events.emit('memory:deleted', id);
+        }
+
+        return toolResult({ deleted: existed });
+      } catch (err) {
+        return toolError(err);
       }
-
-      return {
-        content: [{ type: 'text' as const, text: JSON.stringify({ deleted: existed }) }],
-      };
     },
   );
 
@@ -218,19 +242,21 @@ export function registerTools(
     'Get memory server status',
     {},
     async () => {
-      const status = {
-        memoryCount: store.count(),
-        sessionId: sessionRef.current.id,
-        dbPath: config.dbPath,
-        uptimeMs: Date.now() - startTime,
-        serverName: config.serverName,
-        serverVersion: config.serverVersion,
-        currentSession: sessionRef.current,
-      };
+      try {
+        const status = {
+          memoryCount: store.count(),
+          sessionId: sessionRef.current.id,
+          dbPath: config.dbPath,
+          uptimeMs: Date.now() - startTime,
+          serverName: config.serverName,
+          serverVersion: config.serverVersion,
+          currentSession: sessionRef.current,
+        };
 
-      return {
-        content: [{ type: 'text' as const, text: JSON.stringify(status) }],
-      };
+        return toolResult(status);
+      } catch (err) {
+        return toolError(err);
+      }
     },
   );
 
@@ -241,32 +267,34 @@ export function registerTools(
       metadata: z.record(z.unknown()).optional().describe('Arbitrary session metadata'),
     },
     async ({ metadata }) => {
-      // End only THIS process's session, not all active sessions.
-      // Multiple agents may have concurrent active sessions.
-      if (sessionRef.current && !store.isSessionEnded(sessionRef.current.id)) {
-        store.endSession(sessionRef.current.id);
-        events.emit('session:ended', sessionRef.current.id);
+      try {
+        // End only THIS process's session, not all active sessions.
+        // Multiple agents may have concurrent active sessions.
+        if (sessionRef.current && !store.isSessionEnded(sessionRef.current.id)) {
+          store.endSession(sessionRef.current.id);
+          events.emit('session:ended', sessionRef.current.id);
+          provenance.log({
+            timestamp: Date.now(),
+            action: 'session_end',
+            sessionId: sessionRef.current.id,
+          });
+        }
+
+        const newSession = store.startSession({ metadata: metadata ?? {} });
+        sessionRef.current = newSession;
+
         provenance.log({
           timestamp: Date.now(),
-          action: 'session_end',
-          sessionId: sessionRef.current.id,
+          action: 'session_start',
+          sessionId: newSession.id,
         });
+
+        events.emit('session:started', newSession.id);
+
+        return toolResult(newSession);
+      } catch (err) {
+        return toolError(err);
       }
-
-      const newSession = store.startSession({ metadata: metadata ?? {} });
-      sessionRef.current = newSession;
-
-      provenance.log({
-        timestamp: Date.now(),
-        action: 'session_start',
-        sessionId: newSession.id,
-      });
-
-      events.emit('session:started', newSession.id);
-
-      return {
-        content: [{ type: 'text' as const, text: JSON.stringify(newSession) }],
-      };
     },
   );
 
@@ -275,27 +303,27 @@ export function registerTools(
     'End the current active session',
     {},
     async () => {
-      // End THIS process's session, not an arbitrary active one.
-      const mySession = sessionRef.current;
-      if (store.isSessionEnded(mySession.id)) {
-        return {
-          content: [{ type: 'text' as const, text: JSON.stringify({ error: 'Session already ended' }) }],
-        };
+      try {
+        // End THIS process's session, not an arbitrary active one.
+        const mySession = sessionRef.current;
+        if (store.isSessionEnded(mySession.id)) {
+          return toolResult({ error: 'Session already ended' });
+        }
+
+        store.endSession(mySession.id);
+
+        provenance.log({
+          timestamp: Date.now(),
+          action: 'session_end',
+          sessionId: mySession.id,
+        });
+
+        events.emit('session:ended', mySession.id);
+
+        return toolResult({ ended: mySession.id });
+      } catch (err) {
+        return toolError(err);
       }
-
-      store.endSession(mySession.id);
-
-      provenance.log({
-        timestamp: Date.now(),
-        action: 'session_end',
-        sessionId: mySession.id,
-      });
-
-      events.emit('session:ended', mySession.id);
-
-      return {
-        content: [{ type: 'text' as const, text: JSON.stringify({ ended: mySession.id }) }],
-      };
     },
   );
 
@@ -307,11 +335,13 @@ export function registerTools(
       limit: z.number().optional().describe('Max results (default 50)'),
     },
     async ({ status, limit }) => {
-      const sessions = store.listSessions({ status: status ?? 'all', limit: limit ?? 50 });
+      try {
+        const sessions = store.listSessions({ status: status ?? 'all', limit: limit ?? 50 });
 
-      return {
-        content: [{ type: 'text' as const, text: JSON.stringify(sessions) }],
-      };
+        return toolResult(sessions);
+      } catch (err) {
+        return toolError(err);
+      }
     },
   );
 
@@ -320,16 +350,16 @@ export function registerTools(
     'Get the current active session',
     {},
     async () => {
-      const active = store.getActiveSession();
-      if (!active) {
-        return {
-          content: [{ type: 'text' as const, text: JSON.stringify({ error: 'No active session' }) }],
-        };
-      }
+      try {
+        const active = store.getActiveSession();
+        if (!active) {
+          return toolResult({ error: 'No active session' });
+        }
 
-      return {
-        content: [{ type: 'text' as const, text: JSON.stringify(active) }],
-      };
+        return toolResult(active);
+      } catch (err) {
+        return toolError(err);
+      }
     },
   );
 
@@ -340,26 +370,26 @@ export function registerTools(
       limit: z.number().optional().describe('Max memories to reindex (default 100)'),
     },
     async ({ limit }) => {
-      if (!embedder) {
-        return {
-          content: [{ type: 'text' as const, text: JSON.stringify({ error: 'No embedder configured' }) }],
-        };
-      }
-
-      const batch = store.getWithoutEmbedding(limit ?? 100);
-      let indexed = 0;
-
-      for (const mem of batch) {
-        const vec = await embedder.embed(mem.content);
-        if (vec) {
-          store.update(mem.id, { embedding: vec });
-          indexed++;
+      try {
+        if (!embedder) {
+          return toolResult({ error: 'No embedder configured' });
         }
-      }
 
-      return {
-        content: [{ type: 'text' as const, text: JSON.stringify({ reindexed: indexed, total: batch.length }) }],
-      };
+        const batch = store.getWithoutEmbedding(limit ?? 100);
+        let indexed = 0;
+
+        for (const mem of batch) {
+          const vec = await embedder.embed(mem.content);
+          if (vec) {
+            store.update(mem.id, { embedding: vec });
+            indexed++;
+          }
+        }
+
+        return toolResult({ reindexed: indexed, total: batch.length });
+      } catch (err) {
+        return toolError(err);
+      }
     },
   );
 }

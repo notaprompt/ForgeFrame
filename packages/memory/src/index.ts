@@ -16,9 +16,13 @@ export type {
   MemoryQuery,
   MemoryResult,
   MemoryConfig,
+  ReconsolidationOptions,
   Session,
   SessionCreateInput,
   SessionListOptions,
   TrimTag,
+  DistilledArtifact,
+  DistilledArtifactInput,
 } from './types.js';
-export { TRIM_TAGS, CONSTITUTIONAL_TAGS } from './types.js';
+export { TRIM_TAGS, CONSTITUTIONAL_TAGS, LORA_ELIGIBLE_TAGS } from './types.js';
+export { MEMORY_ORGAN_MANIFEST, createMemoryOrganLifecycle } from './organ.js';

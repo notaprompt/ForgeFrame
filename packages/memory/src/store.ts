@@ -7,7 +7,7 @@
 
 import Database from 'better-sqlite3';
 import { randomUUID } from 'crypto';
-import type { Memory, MemoryCreateInput, MemoryUpdateInput, MemoryConfig, Session, SessionCreateInput, SessionListOptions } from './types.js';
+import type { Memory, MemoryCreateInput, MemoryUpdateInput, MemoryConfig, ReconsolidationOptions, Session, SessionCreateInput, SessionListOptions, DistilledArtifact, DistilledArtifactInput } from './types.js';
 import { DEFAULT_CONFIG, TRIM_TAGS, CONSTITUTIONAL_TAGS } from './types.js';
 
 export class MemoryStore {
@@ -23,7 +23,7 @@ export class MemoryStore {
     this._init();
   }
 
-  private static readonly SCHEMA_VERSION = 1;
+  private static readonly SCHEMA_VERSION = 4;
 
   private static readonly MIGRATIONS: Record<number, string> = {
     1: `
@@ -72,6 +72,33 @@ export class MemoryStore {
 
       CREATE INDEX IF NOT EXISTS idx_sessions_started ON sessions(started_at);
       CREATE INDEX IF NOT EXISTS idx_sessions_active ON sessions(ended_at) WHERE ended_at IS NULL;
+    `,
+    2: `
+      ALTER TABLE memories ADD COLUMN last_decay_at INTEGER;
+      UPDATE memories SET last_decay_at = last_accessed_at;
+    `,
+    3: `
+      ALTER TABLE memories ADD COLUMN retrieval_count INTEGER NOT NULL DEFAULT 0;
+      ALTER TABLE memories ADD COLUMN associations TEXT NOT NULL DEFAULT '[]';
+    `,
+    4: `
+      CREATE TABLE IF NOT EXISTS distilled_artifacts (
+        id            TEXT PRIMARY KEY,
+        source_url    TEXT,
+        source_type   TEXT NOT NULL,
+        raw_hash      TEXT NOT NULL,
+        distilled     TEXT,
+        refined       TEXT,
+        organ_chain   TEXT DEFAULT '[]',
+        memory_id     TEXT,
+        tags          TEXT DEFAULT '[]',
+        created_at    INTEGER NOT NULL,
+        fed_to_memory INTEGER
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_distilled_source ON distilled_artifacts(source_type);
+      CREATE INDEX IF NOT EXISTS idx_distilled_unfed ON distilled_artifacts(fed_to_memory) WHERE fed_to_memory IS NULL;
+      CREATE INDEX IF NOT EXISTS idx_distilled_hash ON distilled_artifacts(raw_hash);
     `,
   };
 
@@ -192,9 +219,60 @@ export class MemoryStore {
 
   recordAccess(id: string): void {
     this._db.prepare(`
-      UPDATE memories SET access_count = access_count + 1, last_accessed_at = ?, strength = MIN(1.0, strength + 0.1)
+      UPDATE memories SET access_count = access_count + 1, last_accessed_at = ?
       WHERE id = ?
     `).run(Date.now(), id);
+  }
+
+  /**
+   * Reconsolidate a memory after retrieval.
+   * Restores strength based on relevance, tracks associations and query context,
+   * increments retrievalCount, and resets the decay clock.
+   */
+  reconsolidate(id: string, opts: ReconsolidationOptions): void {
+    const now = Date.now();
+    const mem = this.get(id);
+    if (!mem) return;
+
+    // Strength restoration: high relevance restores half the gap to 1.0,
+    // low relevance gives a smaller proportional bump
+    const restorationFactor = opts.relevanceScore > 0.5 ? 0.5 : 0.15;
+    const newStrength = Math.min(1.0, mem.strength + (1.0 - mem.strength) * restorationFactor);
+
+    // Association merge (keep unique, cap at 20)
+    const existingAssociations = new Set(mem.associations);
+    if (opts.coRetrievedIds) {
+      for (const coId of opts.coRetrievedIds) {
+        if (coId !== id) existingAssociations.add(coId);
+      }
+    }
+    const associations = [...existingAssociations].slice(-20);
+
+    // Update metadata with last retrieval query
+    const metadata = { ...mem.metadata };
+    if (opts.query) {
+      metadata.lastRetrievalQuery = opts.query;
+      metadata.lastRetrievedAt = now;
+    }
+
+    this._db.prepare(`
+      UPDATE memories
+      SET strength = ?,
+          access_count = access_count + 1,
+          retrieval_count = retrieval_count + 1,
+          last_accessed_at = ?,
+          last_decay_at = ?,
+          associations = ?,
+          metadata = ?
+      WHERE id = ?
+    `).run(
+      newStrength,
+      now,
+      now,
+      JSON.stringify(associations),
+      JSON.stringify(metadata),
+      id,
+    );
   }
 
   /**
@@ -213,20 +291,39 @@ export class MemoryStore {
     );
     const excludeClauses = constitutionalPatterns.map(() => 'tags NOT LIKE ?').join(' AND ');
 
-    const result = this._db.prepare(`
-      UPDATE memories
-      SET strength = MAX(?, strength - ? * ((? - last_accessed_at) / ?))
+    // Fetch all decayable memories
+    const rows = this._db.prepare(`
+      SELECT id, strength, access_count, last_accessed_at, last_decay_at
+      FROM memories
       WHERE strength > ? AND ${excludeClauses}
-    `).run(
-      this._config.decayFloor,
-      this._config.decayRate,
-      now,
-      dayMs,
-      this._config.decayFloor,
-      ...constitutionalPatterns,
+    `).all(this._config.decayFloor, ...constitutionalPatterns) as any[];
+
+    const updateStmt = this._db.prepare(
+      'UPDATE memories SET strength = ?, last_decay_at = ? WHERE id = ?'
     );
 
-    return result.changes;
+    const transaction = this._db.transaction(() => {
+      let changed = 0;
+      for (const row of rows) {
+        const lastDecay = row.last_decay_at ?? row.last_accessed_at;
+        const daysSinceDecay = (now - lastDecay) / dayMs;
+        if (daysSinceDecay <= 0) continue;
+
+        const stability = this._config.baseStability * (1 + row.access_count * this._config.accessMultiplier);
+        const newStrength = Math.max(
+          this._config.decayFloor,
+          row.strength * Math.exp(-daysSinceDecay * Math.LN2 / stability)
+        );
+
+        if (newStrength !== row.strength) {
+          updateStmt.run(newStrength, now, row.id);
+          changed++;
+        }
+      }
+      return changed;
+    });
+
+    return transaction();
   }
 
   resetStrength(id: string, strength = 1.0): void {
@@ -328,6 +425,99 @@ export class MemoryStore {
     return memory.tags.some((t) => (CONSTITUTIONAL_TAGS as readonly string[]).includes(t));
   }
 
+  /**
+   * Find a near-duplicate of the given content using FTS5 candidate search
+   * and longest-common-substring overlap. Returns the matching memory or null.
+   */
+  findDuplicate(content: string, threshold = 0.8): Memory | null {
+    // Quick FTS check using first 200 chars
+    const candidates = this.search(content.slice(0, 200), 5);
+    if (candidates.length === 0) return null;
+
+    for (const candidate of candidates) {
+      const shorter = Math.min(content.length, candidate.content.length);
+      const longer = Math.max(content.length, candidate.content.length);
+      if (shorter / longer > threshold) {
+        const overlap = longestCommonSubstring(content, candidate.content);
+        if (overlap / shorter > threshold) return candidate;
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Merge new content into an existing memory.
+   * Updates content to the newer version, unions tags, bumps access count
+   * and strength.
+   */
+  merge(targetId: string, sourceContent: string, sourceTags: string[]): Memory | null {
+    const target = this.get(targetId);
+    if (!target) return null;
+
+    if (sourceTags.length) this._validateTags(sourceTags);
+    const mergedTags = [...new Set([...target.tags, ...sourceTags])];
+
+    this._db.prepare(`
+      UPDATE memories
+      SET content = ?,
+          tags = ?,
+          access_count = access_count + 1,
+          strength = MIN(1.0, strength + 0.1),
+          last_accessed_at = ?
+      WHERE id = ?
+    `).run(sourceContent, JSON.stringify(mergedTags), Date.now(), targetId);
+
+    return this.get(targetId);
+  }
+
+  // -- Distilled Artifacts --
+
+  createArtifact(input: DistilledArtifactInput): DistilledArtifact {
+    const id = randomUUID();
+    const now = Date.now();
+
+    this._db.prepare(`
+      INSERT INTO distilled_artifacts (id, source_url, source_type, raw_hash, distilled, refined, organ_chain, memory_id, tags, created_at, fed_to_memory)
+      VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, NULL)
+    `).run(
+      id,
+      input.sourceUrl ?? null,
+      input.sourceType,
+      input.rawHash,
+      input.distilled ?? null,
+      input.refined ?? null,
+      JSON.stringify(input.organChain ?? []),
+      JSON.stringify(input.tags ?? []),
+      now,
+    );
+
+    return this.getArtifact(id)!;
+  }
+
+  getArtifact(id: string): DistilledArtifact | null {
+    const row = this._db.prepare('SELECT * FROM distilled_artifacts WHERE id = ?').get(id) as any;
+    return row ? this._rowToArtifact(row) : null;
+  }
+
+  getArtifactByHash(rawHash: string): DistilledArtifact | null {
+    const row = this._db.prepare('SELECT * FROM distilled_artifacts WHERE raw_hash = ?').get(rawHash) as any;
+    return row ? this._rowToArtifact(row) : null;
+  }
+
+  getUnfedArtifacts(limit = 50): DistilledArtifact[] {
+    const rows = this._db.prepare(
+      'SELECT * FROM distilled_artifacts WHERE fed_to_memory IS NULL ORDER BY created_at ASC LIMIT ?',
+    ).all(limit) as any[];
+    return rows.map((r) => this._rowToArtifact(r));
+  }
+
+  markArtifactFed(id: string, memoryId: string): void {
+    this._db.prepare(
+      'UPDATE distilled_artifacts SET fed_to_memory = ?, memory_id = ? WHERE id = ?',
+    ).run(Date.now(), memoryId, id);
+  }
+
   close(): void {
     this._db.close();
   }
@@ -359,11 +549,30 @@ export class MemoryStore {
       embedding: row.embedding ? new Float32Array(row.embedding.buffer) : null,
       strength: row.strength,
       accessCount: row.access_count,
+      retrievalCount: row.retrieval_count ?? 0,
       createdAt: row.created_at,
       lastAccessedAt: row.last_accessed_at,
+      lastDecayAt: row.last_decay_at ?? row.last_accessed_at,
       sessionId: row.session_id,
       tags: JSON.parse(row.tags),
+      associations: JSON.parse(row.associations ?? '[]'),
       metadata: JSON.parse(row.metadata),
+    };
+  }
+
+  private _rowToArtifact(row: any): DistilledArtifact {
+    return {
+      id: row.id,
+      sourceUrl: row.source_url,
+      sourceType: row.source_type,
+      rawHash: row.raw_hash,
+      distilled: row.distilled,
+      refined: row.refined,
+      organChain: JSON.parse(row.organ_chain ?? '[]'),
+      memoryId: row.memory_id,
+      tags: JSON.parse(row.tags ?? '[]'),
+      createdAt: row.created_at,
+      fedToMemory: row.fed_to_memory,
     };
   }
 
@@ -375,4 +584,34 @@ export class MemoryStore {
       metadata: JSON.parse(row.metadata),
     };
   }
+}
+
+/**
+ * Compute the length of the longest common substring between two strings.
+ * Uses a rolling-row DP approach to keep memory usage linear.
+ */
+function longestCommonSubstring(a: string, b: string): number {
+  if (a.length === 0 || b.length === 0) return 0;
+
+  // Ensure a is the shorter string for memory efficiency
+  if (a.length > b.length) [a, b] = [b, a];
+
+  let prev = new Uint16Array(a.length + 1);
+  let curr = new Uint16Array(a.length + 1);
+  let max = 0;
+
+  for (let j = 1; j <= b.length; j++) {
+    for (let i = 1; i <= a.length; i++) {
+      if (a[i - 1] === b[j - 1]) {
+        curr[i] = prev[i - 1] + 1;
+        if (curr[i] > max) max = curr[i];
+      } else {
+        curr[i] = 0;
+      }
+    }
+    [prev, curr] = [curr, prev];
+    curr.fill(0);
+  }
+
+  return max;
 }
