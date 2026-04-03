@@ -104,6 +104,10 @@ For local inference: Ollama embeddings need ~2GB VRAM (`nomic-embed-text`). The 
 
 The memory is yours. The infrastructure that protects it is copyleft.
 
+## Need help setting this up?
+
+[campos.works/services](https://campos.works/services) — setup, integration, and consulting.
+
 ---
 
 *Nothing invented. Everything reframed.*

@@ -2,6 +2,12 @@
   "name": "forgeframe",
   "private": true,
   "description": "Local intelligence infrastructure -- routing, memory, provenance",
+  "homepage": "https://campos.works/projects/forgeframe",
+  "author": "Alexander Campos <adc.acampos@gmail.com> (https://campos.works)",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/notaprompt/ForgeFrame.git"
+  },
   "workspaces": [
     "packages/*"
   ],

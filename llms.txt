@@ -1,0 +1,33 @@
+# ForgeFrame
+
+Local intelligence infrastructure. Memory, routing, scrubbing, agents — one install.
+
+## What It Does
+
+Persistent memory for AI agents. Memories weaken over time unless accessed. Tag something as a principle and it never decays. SQLite + FTS5 with optional Ollama embeddings. Works with Claude Desktop, Cursor, or any MCP client.
+
+Model routing across Anthropic, OpenAI, and Ollama. Intent signals pick the tier automatically. Quick questions go cheap, deep analysis goes frontier.
+
+Localhost PII scrubbing. Strips sensitive data before it leaves your machine. Rehydrates on return.
+
+Multi-agent orchestration in isolated git worktrees with shared memory.
+
+## Install
+
+```
+claude mcp add forgeframe-memory -- npx @forgeframe/server
+```
+
+## Packages
+
+@forgeframe/memory (MIT) — SQLite + FTS5, weighted retrieval, strength decay, embeddings
+@forgeframe/server (MIT) — MCP server with 12 tools, HTTP daemon
+@forgeframe/core (AGPL-3.0) — Tier-based model routing, provider registry
+@forgeframe/proxy (AGPL-3.0) — PII scrubbing proxy
+
+## Built By
+
+Alexander Campos
+https://campos.works
+https://campos.works/services — setup, integration, and consulting
+https://github.com/notaprompt/ForgeFrame
