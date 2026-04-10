@@ -174,6 +174,9 @@ Level-of-detail rendering: at each zoom level, compute which clusters should exp
 - Dark gray/near-black on light themes, cream on dark themes
 - The metaphor: FORGE is the figure standing in the alley. FRAME is its shadow on the ground — massive, expanding toward the viewer
 
+### Known bugs in wireframe
+- Bottom track row of FORGE is clipped — extend gradient pattern further and increase `padding-bottom` on the text element
+
 ### Remaining work
 - Custom letterforms (not Inter) — needs the 70s retro bendy quality from the E direction explorations. Curvy and straight, bold and composed. Parallel track to implementation.
 - Fine-tune FRAME shadow width — should span ~1.3-1.5x wider than FORGE at its widest
