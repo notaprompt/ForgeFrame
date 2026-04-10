@@ -10,6 +10,7 @@ export type { ServerConfig } from './config.js';
 export { ServerEvents } from './events.js';
 export { ProvenanceLogger } from './provenance.js';
 export { isDaemonRunning, stopDaemon, serveDaemon } from './daemon.js';
+export { generateToken, showToken, revokeToken, loadToken } from './token.js';
 export type { DaemonOptions, DaemonStatus } from './daemon.js';
 // ForgeAgent is internal/experimental — not exported until tool execution is wired.
 // See agent.ts and agent-cli.ts for CLI usage via `forgeframe agent run`.

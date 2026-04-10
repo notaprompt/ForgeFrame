@@ -13,6 +13,7 @@ import { GuardianComputer } from '@forgeframe/memory';
 import type { GuardianSignals, MemoryEdge, MemoryStore } from '@forgeframe/memory';
 import type { ServerEvents } from './events.js';
 import { bearerAuth } from './auth.js';
+import { loadToken } from './token.js';
 
 export interface HttpServerOptions {
   store: MemoryStore;
@@ -36,7 +37,7 @@ export function startHttpServer({ store, events, port, hostname }: HttpServerOpt
     maxAge: 86400,
   }));
 
-  const token = process.env.FORGEFRAME_TOKEN;
+  const token = loadToken();
   app.use('/api/*', bearerAuth(token));
 
   // --- Memory write endpoint ---

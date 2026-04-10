@@ -1811,8 +1811,37 @@
   }
 
   // ===== INIT =====
-  if (!state.token) {
-    showAuth();
+  // Probe the server: if no auth is configured, skip the token gate entirely.
+  // If we get 401, show the auth overlay. If we have a saved token, try it.
+  function probe() {
+    return fetch(API_BASE + '/api/status')
+      .then(function(r) { return { status: r.status, ok: r.ok }; })
+      .catch(function() { return { status: 0, ok: false }; });
+  }
+
+  probe().then(function(result) {
+    if (result.ok) {
+      // Server has no auth — skip token gate
+      state.token = '';
+      boot();
+    } else if (result.status === 401 && state.token) {
+      // Auth required and we have a saved token — try it
+      fetch(API_BASE + '/api/status', { headers: { 'Authorization': 'Bearer ' + state.token } })
+        .then(function(r) {
+          if (r.ok) { boot(); }
+          else { showAuthThenBoot(); }
+        })
+        .catch(function() { showAuthThenBoot(); });
+    } else if (result.status === 401) {
+      // Auth required, no saved token
+      showAuthThenBoot();
+    } else {
+      // Server unreachable — show UI with error banner
+      showAuthThenBoot();
+    }
+  });
+
+  function showAuthThenBoot() {
     document.documentElement.setAttribute('data-theme', state.theme);
     initThermal();
     resizeGraph();
@@ -1825,8 +1854,7 @@
     renderInspector();
     renderStatusbar();
     requestAnimationFrame(mainLoop);
-  } else {
-    boot();
+    showAuth();
   }
 
 })();
