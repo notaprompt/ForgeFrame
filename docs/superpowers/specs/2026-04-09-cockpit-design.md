@@ -148,15 +148,20 @@ Three-column layout with status bar:
 └───────────────────────────────────────────────────┘
 ```
 
+### Semantic Zoom (Nested Clusters)
+Nodes are not flat — they are hierarchical. "ForgeFrame" as a node contains memories about architecture, marketplace, agent, strange-loop. At default zoom it's one dot with a dashed cluster ring. Zoom in and constituent memories fan out. Zoom further and those fan out too. Zoom out and they collapse back.
+
+Level-of-detail rendering: at each zoom level, compute which clusters should expand based on viewport bounds and zoom factor. The WebGL renderer handles this with instanced quads that appear/disappear based on camera distance. Edge bundling collapses internal edges when a cluster is contracted.
+
 ### Sidebar (glass panel, collapsible)
-- **Brand**: "forge" in weight 100, 8px letter-spacing
+- **Brand**: "forge" — placeholder weight-200 sans with wide tracking until custom wordmark is designed. Wordmark brief: 70s retro inline/double-line DNA, IBM-logo confidence, reads at 12px and 200px, works across all themes. Parallel track, not a blocker.
 - **Views**: graph, memories, sessions, skills, editor — click to switch main area
 - **Tags**: filterable, colored dots per tag category
 - **Agents**: live agent status from SSE — builder/skeptic/architect with active/watching/idle states, pixel characters from swarm viewer
 - **Guardian**: breathing eye indicator + temp label (calm/warm/trapped)
 
 ### Main Area (transparent — void/canvas shows through)
-- **Graph view**: custom WebGL force-directed graph. Memories are nodes, edges are relationships. Node size = strength. Node opacity decays with strength. Selected node glows mint.
+- **Graph view**: custom WebGL force-directed graph. Memories are nodes, edges are relationships. Node size = strength. Node opacity decays with strength. Selected node glows sage. Cluster nodes show dashed ring indicator. Semantic zoom expands/collapses clusters on zoom in/out.
 - **Search pill**: floating, centered top. `Cmd+K` shortcut. Searches memories, skills, sessions.
 - **Zoom controls**: bottom-left, glass pill buttons
 - **View toggle**: bottom-right — Graph / List / Feed
@@ -349,6 +354,26 @@ Graph view on mobile: pinch-to-zoom, tap to select, long-press for context menu.
 - Obsidian graph view → Cockpit graph with real typed edges
 - Obsidian Dataview → Cockpit inspector with tag/strength/date queries
 - Business OS dashboard concept → absorbed into Cockpit as a view
+
+## Shipping Model
+
+The shipping decision is the artifact choice from "Where the Difference Is Stored." Three mechanisms built, none gated, usage reveals the winner:
+
+1. **Rule-based**: readiness threshold triggers ship preparation automatically
+2. **Agent-judged**: ForgeFrame agent periodically reviews promoted artifacts and makes judgment calls
+3. **Human-gated**: ForgeFrame prepares everything, user gives a single green light in Cockpit
+
+Default: all three exist. The system shows what's ready (green dot = engine thinks this can ship). User can let it ship autonomously, open it and steer, or ignore it. The system watches its own shipping patterns and the right default emerges from usage. Strange Loop applied to the shipping decision itself.
+
+## Contrast & Accessibility Notes (from wireframe testing)
+
+- Canvas must be noticeably darker than panels — `#c2c4b4` canvas vs `rgba(240,238,230,0.6)` panels
+- Text weight 400 minimum on colored backgrounds, not 300
+- Primary text opacity 0.88, not 0.75 — WCAG AA on panel surfaces
+- Node labels weight 500, separate opacity tier for graph-on-canvas readability
+- Strength bars 3px minimum, solid earth fill
+- Graph edges 1.5px minimum with earth-brown stroke
+- Tags need sufficient contrast — use filled backgrounds (sage-bg, gold-bg) not just borders
 
 ## What This Does NOT Include
 
