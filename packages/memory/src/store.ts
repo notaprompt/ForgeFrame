@@ -7,7 +7,7 @@
 
 import Database from 'better-sqlite3';
 import { randomUUID } from 'crypto';
-import type { Memory, MemoryCreateInput, MemoryUpdateInput, MemoryConfig, ReconsolidationOptions, Session, SessionCreateInput, SessionListOptions, DistilledArtifact, DistilledArtifactInput } from './types.js';
+import type { Memory, MemoryCreateInput, MemoryUpdateInput, MemoryConfig, ReconsolidationOptions, Session, SessionCreateInput, SessionListOptions, DistilledArtifact, DistilledArtifactInput, MemoryEdge, EdgeCreateInput } from './types.js';
 import { DEFAULT_CONFIG, TRIM_TAGS, CONSTITUTIONAL_TAGS } from './types.js';
 
 export class MemoryStore {
@@ -538,6 +538,243 @@ export class MemoryStore {
     this._db.prepare(
       'UPDATE distilled_artifacts SET fed_to_memory = ?, memory_id = ? WHERE id = ?',
     ).run(Date.now(), memoryId, id);
+  }
+
+  // -- Edge CRUD --
+
+  createEdge(input: EdgeCreateInput): MemoryEdge {
+    const id = randomUUID();
+    const now = Date.now();
+    this._db.prepare(`
+      INSERT INTO memory_edges (id, source_id, target_id, relation_type, weight, created_at, metadata)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      id,
+      input.sourceId,
+      input.targetId,
+      input.relationType,
+      input.weight ?? 1.0,
+      now,
+      JSON.stringify(input.metadata ?? {}),
+    );
+    return this.getEdge(id)!;
+  }
+
+  getEdge(id: string): MemoryEdge | null {
+    const row = this._db.prepare('SELECT * FROM memory_edges WHERE id = ?').get(id) as any;
+    if (!row) return null;
+    return this._rowToEdge(row);
+  }
+
+  getEdges(memoryId: string): MemoryEdge[] {
+    const rows = this._db.prepare(
+      'SELECT * FROM memory_edges WHERE source_id = ? OR target_id = ? ORDER BY created_at'
+    ).all(memoryId, memoryId) as any[];
+    return rows.map((r) => this._rowToEdge(r));
+  }
+
+  getEdgesByType(memoryId: string, relationType: string): MemoryEdge[] {
+    const rows = this._db.prepare(
+      'SELECT * FROM memory_edges WHERE (source_id = ? OR target_id = ?) AND relation_type = ? ORDER BY created_at'
+    ).all(memoryId, memoryId, relationType) as any[];
+    return rows.map((r) => this._rowToEdge(r));
+  }
+
+  deleteEdge(id: string): boolean {
+    const result = this._db.prepare('DELETE FROM memory_edges WHERE id = ?').run(id);
+    return result.changes > 0;
+  }
+
+  edgeCount(): number {
+    const row = this._db.prepare('SELECT COUNT(*) as cnt FROM memory_edges').get() as any;
+    return row.cnt;
+  }
+
+  getSubgraph(memoryId: string, hops: number): { nodes: Memory[]; edges: MemoryEdge[] } {
+    const visitedNodes = new Set<string>([memoryId]);
+    const visitedEdges = new Set<string>();
+    const edgeList: MemoryEdge[] = [];
+    let frontier = [memoryId];
+
+    for (let hop = 0; hop < hops; hop++) {
+      const nextFrontier: string[] = [];
+      for (const nodeId of frontier) {
+        const edges = this.getEdges(nodeId);
+        for (const edge of edges) {
+          if (!visitedEdges.has(edge.id)) {
+            visitedEdges.add(edge.id);
+            edgeList.push(edge);
+          }
+          const neighborId = edge.sourceId === nodeId ? edge.targetId : edge.sourceId;
+          if (!visitedNodes.has(neighborId)) {
+            visitedNodes.add(neighborId);
+            nextFrontier.push(neighborId);
+          }
+        }
+      }
+      frontier = nextFrontier;
+      if (frontier.length === 0) break;
+    }
+
+    const nodes = [...visitedNodes].map((id) => this.get(id)).filter(Boolean) as Memory[];
+    return { nodes, edges: edgeList };
+  }
+
+  supersede(oldId: string, newId: string): void {
+    const now = Date.now();
+    this._db.prepare(
+      'UPDATE memories SET superseded_by = ?, superseded_at = ? WHERE id = ?'
+    ).run(newId, now, oldId);
+    this._db.prepare(
+      'UPDATE memories SET valid_from = ? WHERE id = ?'
+    ).run(now, newId);
+    this.createEdge({ sourceId: newId, targetId: oldId, relationType: 'supersedes' });
+  }
+
+  getSupersessionChain(memoryId: string): Memory[] {
+    const chain: Memory[] = [];
+    let current = this.get(memoryId);
+    while (current) {
+      chain.push(current);
+      // Follow supersedes edges: find edge where source=current AND type=supersedes
+      const edges = this.getEdgesByType(current.id, 'supersedes');
+      const outgoing = edges.find((e) => e.sourceId === current!.id);
+      if (!outgoing) break;
+      current = this.get(outgoing.targetId);
+    }
+    return chain;
+  }
+
+  promote(memoryId: string): Memory | null {
+    const mem = this.get(memoryId);
+    if (!mem) return null;
+    this._db.prepare(
+      "UPDATE memories SET memory_type = 'artifact', readiness = 0 WHERE id = ?"
+    ).run(memoryId);
+    return this.get(memoryId);
+  }
+
+  getArtifactMemories(): Memory[] {
+    const rows = this._db.prepare(
+      "SELECT * FROM memories WHERE memory_type = 'artifact' ORDER BY created_at DESC"
+    ).all() as any[];
+    return rows.map((r) => this._rowToMemory(r));
+  }
+
+  setReadiness(memoryId: string, readiness: number): void {
+    const clamped = Math.max(0, Math.min(1, readiness));
+    this._db.prepare('UPDATE memories SET readiness = ? WHERE id = ?').run(clamped, memoryId);
+  }
+
+  shipArtifact(memoryId: string): Memory | null {
+    const mem = this.get(memoryId);
+    if (!mem) return null;
+    const now = Date.now();
+    const metadata = { ...mem.metadata, shipped: true, shippedAt: now };
+    this._db.prepare(
+      'UPDATE memories SET readiness = 1, metadata = ? WHERE id = ?'
+    ).run(JSON.stringify(metadata), memoryId);
+    return this.get(memoryId);
+  }
+
+  orphanCount(): number {
+    const row = this._db.prepare(`
+      SELECT COUNT(*) as cnt FROM memories
+      WHERE id NOT IN (SELECT source_id FROM memory_edges)
+        AND id NOT IN (SELECT target_id FROM memory_edges)
+    `).get() as any;
+    return row.cnt;
+  }
+
+  contradictionCount(): number {
+    const row = this._db.prepare(
+      "SELECT COUNT(*) as cnt FROM memory_edges WHERE relation_type = 'contradicts'"
+    ).get() as any;
+    return row.cnt;
+  }
+
+  recentDecayCount(sinceMs: number): number {
+    const since = Date.now() - sinceMs;
+    const row = this._db.prepare(`
+      SELECT COUNT(*) as cnt FROM memories
+      WHERE last_decay_at >= ? AND strength < 0.5
+    `).get(since) as any;
+    return row.cnt;
+  }
+
+  lastShippedAt(): number | null {
+    const rows = this._db.prepare(
+      "SELECT metadata FROM memories WHERE memory_type = 'artifact' ORDER BY created_at DESC"
+    ).all() as any[];
+    for (const row of rows) {
+      const meta = JSON.parse(row.metadata ?? '{}');
+      if (meta.shipped && meta.shippedAt) return meta.shippedAt as number;
+    }
+    return null;
+  }
+
+  autoLink(memoryId: string, maxLinks = 5): number {
+    const mem = this.get(memoryId);
+    if (!mem) return 0;
+
+    // Extract meaningful terms (words > 3 chars), sorted by length descending
+    // so we pick the most discriminating terms first
+    const words = mem.content
+      .replace(/[^\w\s]/g, ' ')
+      .split(/\s+/)
+      .filter((w) => w.length > 3)
+      .sort((a, b) => b.length - a.length)
+      .slice(0, 5);
+
+    if (words.length === 0) return 0;
+
+    // Search for each term individually and union results (OR semantics)
+    const seen = new Set<string>();
+    const candidates: ReturnType<typeof this.search> = [];
+    for (const word of words) {
+      for (const m of this.search(word, maxLinks + 5)) {
+        if (!seen.has(m.id)) {
+          seen.add(m.id);
+          candidates.push(m);
+        }
+      }
+    }
+    let linked = 0;
+
+    for (const candidate of candidates) {
+      if (candidate.id === memoryId) continue;
+      if (linked >= maxLinks) break;
+
+      // Check for existing edge between these two nodes with 'similar' type
+      const existing = this._db.prepare(`
+        SELECT id FROM memory_edges
+        WHERE ((source_id = ? AND target_id = ?) OR (source_id = ? AND target_id = ?))
+          AND relation_type = 'similar'
+      `).get(memoryId, candidate.id, candidate.id, memoryId) as any;
+
+      if (!existing) {
+        try {
+          this.createEdge({ sourceId: memoryId, targetId: candidate.id, relationType: 'similar' });
+          linked++;
+        } catch {
+          // unique constraint violation — skip
+        }
+      }
+    }
+
+    return linked;
+  }
+
+  private _rowToEdge(row: any): MemoryEdge {
+    return {
+      id: row.id,
+      sourceId: row.source_id,
+      targetId: row.target_id,
+      relationType: row.relation_type,
+      weight: row.weight,
+      createdAt: row.created_at,
+      metadata: JSON.parse(row.metadata ?? '{}'),
+    };
   }
 
   close(): void {
