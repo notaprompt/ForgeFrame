@@ -289,40 +289,48 @@ export function startHttpServer({ store, events, port, hostname }: HttpServerOpt
     });
   });
 
-  // --- Viewer (serve static HTML) ---
+  // --- Cockpit / Viewer (serve static HTML) ---
 
   app.get('/', async (c) => {
-    const { readFileSync } = await import('fs');
+    const { readFileSync, existsSync } = await import('fs');
     const { resolve, dirname } = await import('path');
     const { fileURLToPath } = await import('url');
     const __dirname = dirname(fileURLToPath(import.meta.url));
 
+    const cockpitOverride = process.env.FORGEFRAME_COCKPIT_PATH;
     const viewerOverride = process.env.FORGEFRAME_VIEWER_PATH;
-    const candidates = viewerOverride
-      ? [viewerOverride]
+
+    const candidates = cockpitOverride
+      ? [cockpitOverride]
       : [
-          resolve(__dirname, '../../swarm/viewer/index.html'),
-          resolve(__dirname, '../../../swarm/viewer/index.html'),
+          resolve(__dirname, '../../cockpit/web/index.html'),
+          resolve(__dirname, '../../../cockpit/web/index.html'),
+          ...(viewerOverride
+            ? [viewerOverride]
+            : [
+                resolve(__dirname, '../../swarm/viewer/index.html'),
+                resolve(__dirname, '../../../swarm/viewer/index.html'),
+              ]),
         ];
 
     const csp = [
       "default-src 'self'",
-      "script-src 'unsafe-inline'",
+      "script-src 'self' 'unsafe-inline'",
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-      "font-src https://fonts.gstatic.com",
+      "font-src 'self' https://fonts.gstatic.com",
       "connect-src 'self'",
       "img-src 'self' data:",
     ].join('; ');
 
-    for (const path of candidates) {
-      try {
-        const html = readFileSync(path, 'utf-8');
+    for (const candidate of candidates) {
+      if (existsSync(candidate)) {
+        const html = readFileSync(candidate, 'utf-8');
         c.header('Content-Security-Policy', csp);
         return c.html(html);
-      } catch {}
+      }
     }
 
-    return c.text('Viewer not found. Set FORGEFRAME_VIEWER_PATH or run from the ForgeFrame repo.', 404);
+    return c.text('Cockpit not found. Set FORGEFRAME_COCKPIT_PATH or build the cockpit package.', 404);
   });
 
   const server = serve({ fetch: app.fetch, port, hostname: hostname ?? '127.0.0.1' });
