@@ -5,6 +5,7 @@
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { MemoryStore, MemoryRetriever, Session, Embedder } from '@forgeframe/memory';
+import { GuardianComputer } from '@forgeframe/memory';
 import type { ProvenanceLogger } from './provenance.js';
 import type { ServerEvents } from './events.js';
 import type { ServerConfig } from './config.js';
@@ -36,6 +37,7 @@ export function registerTools(
   session: Session,
 ): void {
   const sessionRef = { current: session };
+  const guardian = new GuardianComputer();
 
   server.tool(
     'memory_save',
@@ -390,6 +392,86 @@ export function registerTools(
       } catch (err) {
         return toolError(err);
       }
+    },
+  );
+
+  server.tool(
+    'memory_link',
+    'Create a typed edge between two memories',
+    {
+      sourceId: z.string().describe('Source memory ID'),
+      targetId: z.string().describe('Target memory ID'),
+      relationType: z.enum(['led-to', 'contradicts', 'supersedes', 'implements', 'similar', 'derived-from', 'related']).describe('Relationship type'),
+      weight: z.number().min(0).max(1).optional().describe('Edge weight (0-1)'),
+    },
+    async ({ sourceId, targetId, relationType, weight }) => {
+      try {
+        const edge = store.createEdge({ sourceId, targetId, relationType, weight });
+        events.emit('edge:created', edge);
+        return { content: [{ type: 'text' as const, text: JSON.stringify(edge) }] };
+      } catch (e: any) {
+        return { content: [{ type: 'text' as const, text: e.message }], isError: true };
+      }
+    },
+  );
+
+  server.tool(
+    'memory_graph',
+    'Retrieve N-hop subgraph around a memory',
+    {
+      memoryId: z.string().describe('Center node memory ID'),
+      hops: z.number().int().min(1).max(5).optional().describe('Number of hops (default 2)'),
+    },
+    async ({ memoryId, hops }) => {
+      const subgraph = store.getSubgraph(memoryId, hops ?? 2);
+      const result = {
+        nodes: subgraph.nodes.map((m: any) => ({
+          id: m.id,
+          content: m.content.slice(0, 200),
+          tags: m.tags,
+          strength: m.strength,
+          memoryType: m.memoryType,
+        })),
+        edges: subgraph.edges,
+        nodeCount: subgraph.nodes.length,
+        edgeCount: subgraph.edges.length,
+      };
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result) }] };
+    },
+  );
+
+  server.tool(
+    'memory_promote',
+    'Promote a memory to artifact status (draft state)',
+    {
+      memoryId: z.string().describe('Memory ID to promote'),
+    },
+    async ({ memoryId }) => {
+      const promoted = store.promote(memoryId);
+      if (!promoted) {
+        return { content: [{ type: 'text' as const, text: 'Memory not found' }], isError: true };
+      }
+      events.emit('memory:promoted', promoted);
+      return { content: [{ type: 'text' as const, text: JSON.stringify({ id: promoted.id, memoryType: promoted.memoryType, readiness: promoted.readiness }) }] };
+    },
+  );
+
+  server.tool(
+    'guardian_temp',
+    'Query current Guardian temperature and cognitive signals',
+    {},
+    async () => {
+      const totalMemories = store.count();
+      const signals = {
+        revisitWithoutAction: 0,
+        timeSinceLastArtifactExit: Date.now() - (store.lastShippedAt() ?? Date.now()),
+        contradictionDensity: totalMemories > 0 ? store.contradictionCount() / totalMemories : 0,
+        orphanRatio: totalMemories > 0 ? store.orphanCount() / totalMemories : 0,
+        decayVelocity: store.recentDecayCount(24 * 60 * 60 * 1000),
+        recursionDepth: 0,
+      };
+      const temp = guardian.compute(signals);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(temp) }] };
     },
   );
 }
