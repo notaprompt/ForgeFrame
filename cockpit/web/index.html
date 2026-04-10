@@ -595,7 +595,7 @@
 <div class="grain"></div>
 
 <div class="disconnected-banner hidden" id="disconnected-banner">
-  Connection lost. Reconnecting...
+  <span id="disconnected-banner-text">Connection lost. Reconnecting...</span>
 </div>
 
 <div class="cockpit">
@@ -1583,6 +1583,16 @@
     if (!menu.contains(e.target)) hideCtxMenu();
   });
 
+  // ===== BANNER HELPERS =====
+  function showBanner(msg) {
+    document.getElementById('disconnected-banner-text').textContent = msg;
+    document.getElementById('disconnected-banner').classList.remove('hidden');
+  }
+
+  function hideBanner() {
+    document.getElementById('disconnected-banner').classList.add('hidden');
+  }
+
   // ===== SSE =====
   function connectSSE() {
     if (state.eventSource) {
@@ -1594,14 +1604,14 @@
 
     es.onopen = function() {
       state.connected = true;
-      document.getElementById('disconnected-banner').classList.add('hidden');
+      hideBanner();
       renderSidebar();
       renderStatusbar();
     };
 
     es.onerror = function() {
       state.connected = false;
-      document.getElementById('disconnected-banner').classList.remove('hidden');
+      showBanner('Connection lost. Reconnecting...');
       renderSidebar();
       renderStatusbar();
       es.close();
@@ -1732,6 +1742,7 @@
       renderStatusbar();
     }).catch(function(err) {
       console.error('Failed to load graph:', err);
+      showBanner('Could not reach server. Check that ForgeFrame is running.');
     });
   }
 
@@ -1776,6 +1787,13 @@
     initThermal();
     resizeGraph();
     window.addEventListener('resize', resizeGraph);
+
+    document.addEventListener('visibilitychange', function() {
+      if (!document.hidden && !state.eventSource) {
+        clearTimeout(state.reconnectTimer);
+        connectSSE();
+      }
+    });
 
     buildSearch();
     buildCtxMenu();
