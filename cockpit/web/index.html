@@ -155,42 +155,43 @@
   .sidebar { padding: 20px 12px; display: flex; flex-direction: column; grid-row: 1/2; overflow-y: auto; }
 
   .brand {
-    padding: 4px 8px; margin-bottom: 24px; line-height: 1;
-    position: relative;
+    padding: 12px 8px 30px; margin-bottom: 16px; line-height: 1;
+    position: relative; overflow: visible;
   }
   .brand-forge {
-    font-weight: 900; font-size: 28px;
-    letter-spacing: 8px; text-transform: uppercase;
+    font-weight: 900; font-size: 26px;
+    letter-spacing: 7px; text-transform: uppercase;
     background: repeating-linear-gradient(
       to bottom,
-      #5a4a35 0px, #5a4a35 3.5px,
-      transparent 3.5px, transparent 5.5px,
-      #6b5940 5.5px, #6b5940 9px,
-      transparent 9px, transparent 11px,
-      #8b7355 11px, #8b7355 14.5px,
-      transparent 14.5px, transparent 16.5px,
-      #a07d42 16.5px, #a07d42 20px,
-      transparent 20px, transparent 22px,
-      rgba(138,171,127,0.5) 22px, rgba(138,171,127,0.3) 26px
+      #5a4a35 0px, #5a4a35 3px,
+      transparent 3px, transparent 4.5px,
+      #6b5940 4.5px, #6b5940 7.5px,
+      transparent 7.5px, transparent 9px,
+      #8b7355 9px, #8b7355 12px,
+      transparent 12px, transparent 13.5px,
+      #a07d42 13.5px, #a07d42 16.5px,
+      transparent 16.5px, transparent 18px,
+      rgba(138,171,127,0.6) 18px, rgba(138,171,127,0.25) 22px,
+      transparent 22px, transparent 40px
     );
     -webkit-background-clip: text;
     background-clip: text;
     -webkit-text-fill-color: transparent;
     display: block;
-    padding-bottom: 4px;
+    padding: 6px 0 8px;
     position: relative;
     z-index: 2;
   }
   .brand-frame {
-    font-weight: 900; font-size: 28px;
-    letter-spacing: 8px; text-transform: uppercase;
-    color: var(--ink);
+    font-weight: 900; font-size: 26px;
+    letter-spacing: 7px; text-transform: uppercase;
+    color: #4a3f30;
     display: block;
-    transform: perspective(120px) rotateX(68deg) scaleX(1.4);
+    transform: perspective(100px) rotateX(62deg) scaleX(1.5);
     transform-origin: top center;
-    opacity: 0.08;
-    filter: blur(0.5px);
-    margin-top: -6px;
+    opacity: 0.18;
+    filter: blur(0.3px);
+    margin-top: -4px;
     position: relative;
     z-index: 1;
   }
