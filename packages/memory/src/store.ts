@@ -23,7 +23,7 @@ export class MemoryStore {
     this._init();
   }
 
-  private static readonly SCHEMA_VERSION = 4;
+  private static readonly SCHEMA_VERSION = 5;
 
   private static readonly MIGRATIONS: Record<number, string> = {
     1: `
@@ -99,6 +99,28 @@ export class MemoryStore {
       CREATE INDEX IF NOT EXISTS idx_distilled_source ON distilled_artifacts(source_type);
       CREATE INDEX IF NOT EXISTS idx_distilled_unfed ON distilled_artifacts(fed_to_memory) WHERE fed_to_memory IS NULL;
       CREATE INDEX IF NOT EXISTS idx_distilled_hash ON distilled_artifacts(raw_hash);
+    `,
+    5: `
+      CREATE TABLE IF NOT EXISTS memory_edges (
+        id TEXT PRIMARY KEY,
+        source_id TEXT NOT NULL REFERENCES memories(id) ON DELETE CASCADE,
+        target_id TEXT NOT NULL REFERENCES memories(id) ON DELETE CASCADE,
+        relation_type TEXT NOT NULL,
+        weight REAL NOT NULL DEFAULT 1.0,
+        created_at INTEGER NOT NULL,
+        metadata TEXT NOT NULL DEFAULT '{}',
+        UNIQUE(source_id, target_id, relation_type)
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_edges_source ON memory_edges(source_id);
+      CREATE INDEX IF NOT EXISTS idx_edges_target ON memory_edges(target_id);
+      CREATE INDEX IF NOT EXISTS idx_edges_type ON memory_edges(relation_type);
+
+      ALTER TABLE memories ADD COLUMN valid_from INTEGER;
+      ALTER TABLE memories ADD COLUMN superseded_by TEXT;
+      ALTER TABLE memories ADD COLUMN superseded_at INTEGER;
+      ALTER TABLE memories ADD COLUMN memory_type TEXT NOT NULL DEFAULT 'semantic';
+      ALTER TABLE memories ADD COLUMN readiness REAL NOT NULL DEFAULT 0;
     `,
   };
 
@@ -557,6 +579,11 @@ export class MemoryStore {
       tags: JSON.parse(row.tags),
       associations: JSON.parse(row.associations ?? '[]'),
       metadata: JSON.parse(row.metadata),
+      validFrom: row.valid_from ?? undefined,
+      supersededBy: row.superseded_by ?? undefined,
+      supersededAt: row.superseded_at ?? undefined,
+      memoryType: row.memory_type ?? 'semantic',
+      readiness: row.readiness ?? 0,
     };
   }
 
