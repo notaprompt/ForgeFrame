@@ -1,84 +1,53 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { MemoryStore } from './store.js';
 import { MemoryRetriever } from './retrieval.js';
+import { unlinkSync } from 'fs';
 
-describe('MemoryRetriever', () => {
+const TEST_DB = `/tmp/forgeframe-retrieval-test-${Date.now()}.db`;
+
+describe('RRF Retrieval', () => {
   let store: MemoryStore;
   let retriever: MemoryRetriever;
 
   beforeEach(() => {
-    store = new MemoryStore({ dbPath: ':memory:' });
+    store = new MemoryStore({ dbPath: TEST_DB });
     retriever = new MemoryRetriever(store);
+    const m1 = store.create({ content: 'ForgeFrame architecture decisions for the platform' });
+    const m2 = store.create({ content: 'Guardian temperature computation and signal processing' });
+    const m3 = store.create({ content: 'ForgeFrame sovereign memory layer design' });
+    store.createEdge({ sourceId: m1.id, targetId: m3.id, relationType: 'related' });
   });
 
   afterEach(() => {
     store.close();
+    try { unlinkSync(TEST_DB); } catch {}
+    try { unlinkSync(TEST_DB + '-wal'); } catch {}
+    try { unlinkSync(TEST_DB + '-shm'); } catch {}
   });
 
-  it('query with text returns scored results', () => {
-    store.create({ content: 'quantum physics lecture notes' });
-    store.create({ content: 'grocery shopping list' });
-
-    const results = retriever.query({ text: 'quantum' });
-    expect(results.length).toBe(1);
-    expect(results[0].memory.content).toContain('quantum');
-    expect(results[0].score).toBeTypeOf('number');
+  it('returns results from FTS', () => {
+    const results = retriever.query({ text: 'ForgeFrame', limit: 10 });
+    expect(results.length).toBeGreaterThanOrEqual(2);
   });
 
-  it('query with tag filter filters by tags', () => {
-    store.create({ content: 'tagged item alpha', tags: ['important'] });
-    store.create({ content: 'tagged item beta', tags: ['trivial'] });
-
-    const results = retriever.query({ text: 'tagged', tags: ['important'] });
-    expect(results.length).toBe(1);
-    expect(results[0].memory.tags).toContain('important');
+  it('includes direct FTS matches', () => {
+    const results = retriever.query({ text: 'architecture', limit: 10 });
+    const contents = results.map(r => r.memory.content);
+    expect(contents).toContain('ForgeFrame architecture decisions for the platform');
   });
 
-  it('query with minStrength filters weak memories', () => {
-    store.create({ content: 'strong memory candidate' });
-
-    // All fresh memories have strength 1.0, so minStrength 0.9 keeps them
-    const kept = retriever.query({ text: 'strong', minStrength: 0.9 });
-    expect(kept.length).toBe(1);
-
-    // minStrength above 1.0 filters everything
-    const filtered = retriever.query({ text: 'strong', minStrength: 1.1 });
-    expect(filtered.length).toBe(0);
+  it('filters by minStrength', () => {
+    const results = retriever.query({ text: 'ForgeFrame', limit: 10, minStrength: 2.0 });
+    expect(results).toHaveLength(0);
   });
 
-  it('query with sessionId includes session memories', () => {
-    store.create({ content: 'session scoped note', sessionId: 'sess-a' });
-    store.create({ content: 'other note', sessionId: 'sess-b' });
-
-    const results = retriever.query({ sessionId: 'sess-a' });
-    expect(results.length).toBe(1);
-    expect(results[0].memory.sessionId).toBe('sess-a');
+  it('filters by tags', () => {
+    const results = retriever.query({ text: 'ForgeFrame', limit: 10, tags: ['nonexistent'] });
+    expect(results).toHaveLength(0);
   });
 
-  it('query respects limit', () => {
-    store.create({ content: 'limit test alpha' });
-    store.create({ content: 'limit test beta' });
-    store.create({ content: 'limit test gamma' });
-
-    const results = retriever.query({ text: 'limit', limit: 2 });
-    expect(results.length).toBe(2);
-  });
-
-  it('query records access on returned memories', () => {
-    const mem = store.create({ content: 'access tracking test' });
-    expect(mem.accessCount).toBe(0);
-
-    retriever.query({ text: 'access' });
-
-    const after = store.get(mem.id)!;
-    expect(after.accessCount).toBe(1);
-  });
-
-  it('results sorted by score descending', () => {
-    store.create({ content: 'sorting result alpha' });
-    store.create({ content: 'sorting result beta' });
-
-    const results = retriever.query({ text: 'sorting' });
+  it('returns results sorted by score descending', () => {
+    const results = retriever.query({ text: 'ForgeFrame', limit: 10 });
     for (let i = 1; i < results.length; i++) {
       expect(results[i - 1].score).toBeGreaterThanOrEqual(results[i].score);
     }

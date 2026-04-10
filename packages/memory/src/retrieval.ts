@@ -19,50 +19,71 @@ export class MemoryRetriever {
   }
 
   /**
-   * Retrieve memories ranked by combined keyword + strength score.
-   * Semantic similarity (embedding-based) will be added when the
-   * embedding pipeline is wired.
+   * Retrieve memories using Reciprocal Rank Fusion (RRF) combining FTS
+   * keyword results with graph-connected neighbors.
    */
   query(q: MemoryQuery): MemoryResult[] {
-    const limit = q.limit || 10;
-    const minStrength = q.minStrength || 0.0;
+    const limit = q.limit ?? 10;
+    const ftsResults = this._store.search(q.text ?? '', limit * 3);
+    const candidates = new Map<string, { memory: Memory; ftsRank?: number; graphRank?: number }>();
 
-    let candidates: Memory[] = [];
+    // Strategy 1: FTS
+    ftsResults.forEach((mem, idx) => {
+      candidates.set(mem.id, { memory: mem, ftsRank: idx + 1 });
+    });
 
-    if (q.text) {
-      candidates = this._store.search(q.text, limit * 3);
+    // Strategy 2: Graph walk from top-3 FTS seeds
+    const seeds = ftsResults.slice(0, 3);
+    const graphNeighbors: Memory[] = [];
+    for (const seed of seeds) {
+      const sub = this._store.getSubgraph(seed.id, 1);
+      for (const node of sub.nodes) {
+        if (!candidates.has(node.id)) {
+          graphNeighbors.push(node);
+        }
+      }
+    }
+    graphNeighbors.forEach((mem, idx) => {
+      const existing = candidates.get(mem.id);
+      if (existing) {
+        existing.graphRank = idx + 1;
+      } else {
+        candidates.set(mem.id, { memory: mem, graphRank: idx + 1 });
+      }
+    });
+
+    // RRF fusion
+    const k = 60;
+    const scored: MemoryResult[] = [];
+    for (const [, { memory, ftsRank, graphRank }] of candidates) {
+      if (q.minStrength && memory.strength < q.minStrength) continue;
+      if (q.tags?.length && !q.tags.some(t => memory.tags.includes(t))) continue;
+
+      let score = 0;
+      if (ftsRank) score += 1 / (k + ftsRank);
+      if (graphRank) score += 1 / (k + graphRank);
+      score += memory.strength * 0.01;
+
+      scored.push({ memory, score });
+    }
+
+    scored.sort((a, b) => b.score - a.score);
+    const results = scored.slice(0, limit);
+
+    for (const r of results) {
+      this._store.recordAccess(r.memory.id);
     }
 
     if (q.sessionId) {
-      const sessionMemories = this._store.getBySession(q.sessionId);
-      candidates = this._mergeUnique(candidates, sessionMemories);
+      const sessionMems = this._store.getBySession(q.sessionId);
+      for (const mem of sessionMems) {
+        if (!results.some(r => r.memory.id === mem.id)) {
+          results.push({ memory: mem, score: mem.strength * 0.2 });
+        }
+      }
     }
 
-    // Filter by minimum strength
-    candidates = candidates.filter((m) => m.strength >= minStrength);
-
-    // Filter by tags if specified
-    if (q.tags && q.tags.length > 0) {
-      candidates = candidates.filter((m) =>
-        q.tags!.some((tag) => m.tags.includes(tag))
-      );
-    }
-
-    // Score: combine text relevance position with strength
-    const results: MemoryResult[] = candidates.map((memory, index) => {
-      const positionScore = 1.0 - (index / Math.max(candidates.length, 1));
-      const score = (positionScore * 0.6) + (memory.strength * 0.4);
-      return { memory, score };
-    });
-
-    // Record access for retrieved memories
-    results.slice(0, limit).forEach((r) => {
-      this._store.recordAccess(r.memory.id);
-    });
-
-    return results
-      .sort((a, b) => b.score - a.score)
-      .slice(0, limit);
+    return results;
   }
 
   /**
