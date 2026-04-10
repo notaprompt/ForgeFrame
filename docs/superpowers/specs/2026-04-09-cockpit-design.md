@@ -18,14 +18,65 @@ The driver steers. The engine ships. Guardian provides road feel.
 
 **Olive Glass** — light translucent panels over a reactive thermal canvas.
 
-### Color System
-- Background: olive-green base, reactive via Guardian thermal WebGL shader
-- Panels: translucent glass, slightly darker than background to communicate depth/stackability
-  - `backdrop-filter: blur(40px) saturate(1.5)`
-  - Panel-over-same-color creates a faintly darker saturated hue
-- Text: dark on light, seven opacity tiers (0.75 / 0.5 / 0.3 / 0.18 / 0.1 / 0.05 / 0.02)
-- Accents: mint green (`#34C77B`) for active/healthy, hot red (`#E5484D`) for trapped/alert
-- Dark mode available as option, not default
+### Design Philosophy
+Billion-dollar fashion app that happens to serve developers for free. MCM techno-modern — not maximal, not minimal, just *considered*. Every surface earns its place. The aesthetic is the moat. People install ForgeFrame because the Cockpit looks like nothing else in the dev tool space.
+
+Inverse Reframed sprinkle: Reframed is warm linen with earth tones. The Cockpit inverts that — olive/sage base with gold and beige as accent warmth bleeding through, like Reframed's palette seen through tinted glass.
+
+### Theme System — Real Settings, Real Accessibility
+
+The Cockpit ships with curated themes, not a color picker. Each theme is a complete mood, not a palette swap. A real settings panel (`Cmd+,`) with:
+- Theme selector (visual previews, not a dropdown)
+- Font size scaling (accessibility)
+- Reduced motion toggle
+- Graph density preference (minimal / standard / dense)
+- Guardian sensitivity slider
+
+#### Default: Olive Glass
+The signature look. Sage/olive canvas with gold and beige warmth.
+- Canvas base: `#d4d5c7` (sage) — shifted by Guardian thermal shader
+- Panel glass: `rgba(210,211,199,0.55)` — same hue, darker via stacking. `blur(40px) saturate(1.5)`
+- Text: `#1c1917` (Reframed's warm foreground) at seven opacity tiers
+- Gold accent: `#b8965a` (Guardian Labs gold) — links, interactive highlights, selected states
+- Beige warmth: `#E8DCC8` (Guardian Labs cream) — inspector backgrounds, hover states
+- Earth accent: `#8b7355` (shared Reframed/Guardian bronze) — secondary actions, tags
+- Terracotta: `#c4956a` — artifact "drafting" state, warm attention
+- Sage green: `#8aab7f` (Reframed accent-cool) — active/healthy, mint replacement
+- Muted red: `#a65d57` (Reframed danger) — trapped/alert, Guardian warnings
+- Film grain at 0.02 opacity, paper texture from Reframed's receipt aesthetic
+
+#### Theme: Linen (Reframed native)
+Warm paper feel, for when you want the Cockpit to feel like Reframed.
+- Canvas: `#f4f1eb` (Reframed linen)
+- Panels: `rgba(250,247,242,0.65)` (Reframed surface)
+- Gold: `#b8965a`, Earth: `#8b7355`, Terracotta: `#c4956a`
+- Full receipt aesthetic: printer's marks, stitch borders, paper grain dots
+
+#### Theme: Ink (dark)
+For 2am sessions. Not black — warm dark.
+- Canvas: `#1c1917` (Reframed foreground as background)
+- Panels: `rgba(40,36,33,0.55)`
+- Gold: `#b8965a` (pops on dark), Cream: `#E8DCC8` as text primary
+- Film grain more visible at 0.04
+
+#### Theme: Slate (neutral)
+Clean, professional, for when someone's looking over your shoulder at work.
+- Canvas: `#e8e8ec` (cool gray)
+- Panels: `rgba(232,232,236,0.55)`
+- Accents: desaturated blue-gray, no gold. Corporate-safe.
+
+#### Theme: Void (pure dark, StrudelVision DNA)
+For the shader heads.
+- Canvas: `#000000`
+- Panels: `rgba(30,30,30,0.55)` with `saturate(1.4)`
+- Mint `#5BF29B` + red `#ff3355` only. Seven white opacity tiers.
+
+All themes share:
+- Same seven-tier opacity system for text hierarchy
+- Same glass recipe (`blur(40px)`, stacked-panel darkening)
+- Same Guardian thermal shader (hue-shifted per theme)
+- Same typography scale
+- CSS custom properties — theme switch is instant, no reload
 
 ### Typography — StrudelVision DNA
 - UI: Inter, weights 100-400 only, antialiased
