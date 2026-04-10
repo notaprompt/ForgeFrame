@@ -1,0 +1,1817 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="olive">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ForgeFrame Cockpit</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@100;200;300;400;500;600&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --canvas: #c2c4b4;
+    --panel: rgba(240,238,230,0.6);
+    --panel-solid: rgba(245,243,236,0.85);
+    --panel-hover: rgba(245,243,236,0.7);
+    --border: rgba(0,0,0,0.1);
+    --border-hover: rgba(0,0,0,0.18);
+    --shadow: 0 8px 32px rgba(0,0,0,0.07), 0 1px 0 rgba(255,255,255,0.6) inset;
+    --ink: #1c1917;
+    --t1: rgba(28,25,23,0.88);
+    --t2: rgba(28,25,23,0.62);
+    --t3: rgba(28,25,23,0.42);
+    --t4: rgba(28,25,23,0.28);
+    --t5: rgba(28,25,23,0.14);
+    --t6: rgba(28,25,23,0.07);
+    --gt1: rgba(28,25,23,0.75);
+    --gt2: rgba(28,25,23,0.5);
+    --gt3: rgba(28,25,23,0.3);
+    --gold: #a07d42;
+    --gold-dim: rgba(160,125,66,0.4);
+    --gold-bg: rgba(160,125,66,0.1);
+    --cream: #E8DCC8;
+    --cream-bg: rgba(232,220,200,0.3);
+    --earth: #6b5940;
+    --earth-dim: rgba(107,89,64,0.35);
+    --terra: #b07d50;
+    --terra-dim: rgba(176,125,80,0.35);
+    --sage: #5e8a52;
+    --sage-dim: rgba(94,138,82,0.4);
+    --sage-bg: rgba(94,138,82,0.1);
+    --danger: #9e4a45;
+    --danger-dim: rgba(158,74,69,0.35);
+    --danger-bg: rgba(158,74,69,0.08);
+    --font-ui: 'Inter', -apple-system, sans-serif;
+    --font-mono: 'JetBrains Mono', 'SF Mono', monospace;
+    --radius: 12px;
+  }
+
+  /* === THEME: INK (dark) === */
+  [data-theme="ink"] {
+    --canvas: #1a1a1f;
+    --panel: rgba(30,30,35,0.7);
+    --panel-solid: rgba(38,38,44,0.9);
+    --panel-hover: rgba(42,42,48,0.8);
+    --border: rgba(255,255,255,0.08);
+    --border-hover: rgba(255,255,255,0.14);
+    --shadow: 0 8px 32px rgba(0,0,0,0.3), 0 1px 0 rgba(255,255,255,0.04) inset;
+    --ink: #e8e6e1;
+    --t1: rgba(232,230,225,0.88);
+    --t2: rgba(232,230,225,0.6);
+    --t3: rgba(232,230,225,0.4);
+    --t4: rgba(232,230,225,0.25);
+    --t5: rgba(232,230,225,0.12);
+    --t6: rgba(232,230,225,0.06);
+    --gt1: rgba(232,230,225,0.7);
+    --gt2: rgba(232,230,225,0.45);
+    --gt3: rgba(232,230,225,0.25);
+  }
+
+  /* === THEME: LINEN (warm) === */
+  [data-theme="linen"] {
+    --canvas: #d6cfc0;
+    --panel: rgba(235,228,215,0.65);
+    --panel-solid: rgba(242,236,224,0.88);
+    --panel-hover: rgba(245,240,228,0.75);
+    --border: rgba(120,100,70,0.12);
+    --border-hover: rgba(120,100,70,0.2);
+    --shadow: 0 8px 32px rgba(80,60,30,0.08), 0 1px 0 rgba(255,255,255,0.5) inset;
+  }
+
+  /* === THEME: SLATE (neutral) === */
+  [data-theme="slate"] {
+    --canvas: #b8bcc2;
+    --panel: rgba(225,228,232,0.6);
+    --panel-solid: rgba(235,237,240,0.85);
+    --panel-hover: rgba(238,240,243,0.7);
+    --border: rgba(0,0,0,0.09);
+    --border-hover: rgba(0,0,0,0.16);
+    --shadow: 0 8px 32px rgba(0,0,0,0.06), 0 1px 0 rgba(255,255,255,0.55) inset;
+  }
+
+  /* === THEME: VOID (pure dark) === */
+  [data-theme="void"] {
+    --canvas: #0a0a0c;
+    --panel: rgba(18,18,22,0.75);
+    --panel-solid: rgba(22,22,28,0.92);
+    --panel-hover: rgba(28,28,34,0.85);
+    --border: rgba(255,255,255,0.05);
+    --border-hover: rgba(255,255,255,0.1);
+    --shadow: 0 8px 32px rgba(0,0,0,0.5), 0 1px 0 rgba(255,255,255,0.02) inset;
+    --ink: #d4d2cd;
+    --t1: rgba(212,210,205,0.88);
+    --t2: rgba(212,210,205,0.58);
+    --t3: rgba(212,210,205,0.38);
+    --t4: rgba(212,210,205,0.22);
+    --t5: rgba(212,210,205,0.1);
+    --t6: rgba(212,210,205,0.05);
+    --gt1: rgba(212,210,205,0.65);
+    --gt2: rgba(212,210,205,0.4);
+    --gt3: rgba(212,210,205,0.2);
+  }
+
+  body {
+    font-family: var(--font-ui);
+    font-weight: 400;
+    height: 100vh;
+    overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+    color: var(--t1);
+  }
+
+  .grain {
+    position: fixed; inset: 0;
+    opacity: 0.018;
+    pointer-events: none; z-index: 1000;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E");
+  }
+
+  #thermal { position: fixed; inset: 0; z-index: 0; }
+  #graph-canvas { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 2; cursor: grab; }
+  #graph-canvas.dragging { cursor: grabbing; }
+
+  .cockpit {
+    position: relative; z-index: 1;
+    display: grid;
+    grid-template-columns: 210px 1fr 280px;
+    grid-template-rows: 1fr 36px;
+    height: 100vh;
+    padding: 8px;
+    gap: 8px;
+  }
+
+  .glass {
+    background: var(--panel);
+    backdrop-filter: blur(40px) saturate(1.5);
+    -webkit-backdrop-filter: blur(40px) saturate(1.5);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+  }
+
+  /* === SIDEBAR === */
+  .sidebar { padding: 20px 12px; display: flex; flex-direction: column; grid-row: 1/2; overflow-y: auto; }
+
+  .brand {
+    font-weight: 200; font-size: 12px;
+    letter-spacing: 6px; text-transform: uppercase;
+    color: var(--t3); padding: 0 8px; margin-bottom: 28px;
+  }
+
+  .nav-label {
+    font-size: 9px; font-weight: 600;
+    letter-spacing: 2px; text-transform: uppercase;
+    color: var(--t4); padding: 0 8px;
+    margin-bottom: 6px; margin-top: 20px;
+  }
+  .nav-label:first-of-type { margin-top: 0; }
+
+  .nav-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 7px 10px; border-radius: 8px;
+    font-size: 12px; font-weight: 400;
+    color: var(--t2); cursor: pointer;
+    transition: all 0.15s ease;
+    border: 1px solid transparent;
+    user-select: none;
+  }
+  .nav-item:hover { background: rgba(0,0,0,0.04); color: var(--t1); }
+  .nav-item.active {
+    background: rgba(0,0,0,0.06); color: var(--t1);
+    border-color: var(--border); font-weight: 500;
+  }
+  .nav-dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--t5); transition: all 0.3s ease; flex-shrink: 0;
+  }
+  .nav-item.active .nav-dot {
+    background: var(--sage); box-shadow: 0 0 8px var(--sage-dim);
+  }
+  .nav-count {
+    margin-left: auto; font-family: var(--font-mono);
+    font-size: 10px; font-weight: 400; color: var(--t3);
+  }
+
+  .tag-filters { margin-top: 4px; }
+  .tag-dot { transition: all 0.3s ease; }
+
+  .agent-strip { margin-top: auto; padding-top: 14px; border-top: 1px solid var(--t5); }
+  .agent-row {
+    display: flex; align-items: center; gap: 8px;
+    padding: 5px 10px; font-size: 11px; font-weight: 400;
+    color: var(--t2); cursor: pointer; border-radius: 6px;
+    transition: all 0.15s ease;
+  }
+  .agent-row:hover { background: rgba(0,0,0,0.03); }
+  .adot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+  .adot.on { background: var(--sage); box-shadow: 0 0 6px var(--sage-dim); }
+  .adot.watch { background: var(--terra); box-shadow: 0 0 6px var(--terra-dim); }
+  .adot.off { background: var(--t5); }
+  .astatus {
+    margin-left: auto; font-family: var(--font-mono);
+    font-size: 9px; letter-spacing: 1px;
+    text-transform: uppercase; color: var(--t3); font-weight: 400;
+  }
+
+  .guardian-strip {
+    margin-top: 14px; padding: 10px 10px 0;
+    border-top: 1px solid var(--t5);
+    display: flex; align-items: center; gap: 8px;
+    font-size: 10px; font-weight: 400; color: var(--t2);
+  }
+  .g-eye {
+    width: 10px; height: 10px; border-radius: 50%;
+    border: 1.5px solid var(--t4); position: relative; flex-shrink: 0;
+  }
+  .g-eye::after {
+    content: ''; position: absolute;
+    width: 4px; height: 4px; border-radius: 50%;
+    top: 50%; left: 50%; transform: translate(-50%,-50%);
+    animation: breathe 4s ease-in-out infinite;
+  }
+  .g-eye.calm::after { background: var(--sage); }
+  .g-eye.warm::after { background: var(--gold); }
+  .g-eye.trapped::after { background: var(--danger); }
+  .g-eye.offline { border-color: var(--t5); }
+  .g-eye.offline::after { background: var(--t4); animation: none; }
+  @keyframes breathe {
+    0%,100% { opacity: 0.3; transform: translate(-50%,-50%) scale(0.7); }
+    50% { opacity: 1; transform: translate(-50%,-50%) scale(1.2); }
+  }
+
+  .settings-btn {
+    margin-top: 12px; padding: 6px 10px;
+    display: flex; align-items: center; gap: 8px;
+    font-size: 11px; font-weight: 400; color: var(--t3);
+    cursor: pointer; border-radius: 6px;
+    transition: all 0.15s ease;
+  }
+  .settings-btn:hover { background: rgba(0,0,0,0.04); color: var(--t1); }
+
+  /* === MAIN === */
+  .main-area {
+    position: relative; overflow: hidden;
+    background: transparent; border-radius: var(--radius);
+    grid-row: 1/2;
+  }
+
+  .search-pill {
+    position: absolute; top: 14px; left: 50%; transform: translateX(-50%);
+    width: 340px; height: 34px;
+    background: var(--panel-solid);
+    backdrop-filter: blur(40px) saturate(1.5);
+    -webkit-backdrop-filter: blur(40px) saturate(1.5);
+    border: 1px solid var(--border); border-radius: 20px;
+    box-shadow: var(--shadow);
+    display: flex; align-items: center; padding: 0 14px; gap: 8px;
+    z-index: 10; transition: all 0.2s ease;
+  }
+  .search-pill:focus-within {
+    border-color: var(--gold-dim);
+    box-shadow: var(--shadow), 0 0 0 3px var(--gold-bg);
+    width: 420px;
+  }
+  .search-pill input {
+    background: none; border: none; outline: none;
+    color: var(--t1); font-family: var(--font-ui);
+    font-weight: 300; font-size: 12px; width: 100%;
+  }
+  .search-pill input::placeholder { color: var(--t4); }
+  .skey {
+    font-family: var(--font-mono); font-size: 10px; color: var(--t3);
+    border: 1px solid var(--t5); padding: 2px 7px;
+    border-radius: 4px; white-space: nowrap; font-weight: 400;
+  }
+
+  /* Context menu */
+  .ctx-menu {
+    position: fixed; z-index: 100;
+    background: var(--panel-solid);
+    backdrop-filter: blur(40px) saturate(1.5);
+    -webkit-backdrop-filter: blur(40px) saturate(1.5);
+    border: 1px solid var(--border); border-radius: 10px;
+    box-shadow: 0 12px 48px rgba(0,0,0,0.12), 0 1px 0 rgba(255,255,255,0.6) inset;
+    padding: 4px; min-width: 160px;
+    display: none; opacity: 0;
+    transform: scale(0.95) translateY(-4px); transform-origin: top left;
+    transition: opacity 0.12s ease, transform 0.12s ease;
+  }
+  .ctx-menu.visible { display: block; opacity: 1; transform: scale(1) translateY(0); }
+  .ctx-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 12px; border-radius: 6px;
+    font-size: 12px; font-weight: 400; color: var(--t2);
+    cursor: pointer; transition: all 0.1s ease; user-select: none;
+  }
+  .ctx-item:hover { background: var(--gold-bg); color: var(--t1); }
+  .ctx-key {
+    margin-left: auto; font-family: var(--font-mono);
+    font-size: 10px; color: var(--t4);
+  }
+  .ctx-sep { height: 1px; background: var(--t6); margin: 3px 8px; }
+
+  .zoom-bar {
+    position: absolute; bottom: 14px; left: 14px;
+    display: flex; gap: 4px; z-index: 10;
+  }
+  .zbtn {
+    width: 30px; height: 30px;
+    background: var(--panel-solid);
+    backdrop-filter: blur(20px);
+    border: 1px solid var(--border); border-radius: 8px;
+    box-shadow: var(--shadow);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; font-weight: 300; color: var(--t2);
+    cursor: pointer; transition: all 0.15s ease; user-select: none;
+  }
+  .zbtn:hover { border-color: var(--border-hover); color: var(--t1); }
+  .zbtn:active { transform: scale(0.92); }
+
+  .view-toggle {
+    position: absolute; bottom: 14px; right: 14px;
+    display: flex; gap: 2px;
+    background: var(--panel-solid);
+    border: 1px solid var(--border); border-radius: 8px;
+    padding: 3px; box-shadow: var(--shadow); z-index: 10;
+  }
+  .vbtn {
+    padding: 5px 12px; font-size: 10px; font-weight: 500;
+    letter-spacing: 0.8px; text-transform: uppercase;
+    color: var(--t3); border-radius: 6px;
+    cursor: pointer; transition: all 0.15s ease; user-select: none;
+  }
+  .vbtn.active { background: rgba(0,0,0,0.06); color: var(--t1); }
+  .vbtn:hover:not(.active) { color: var(--t2); }
+
+  /* === INSPECTOR === */
+  .inspector { padding: 0; display: flex; flex-direction: column; overflow: hidden; grid-row: 1/2; }
+
+  .inspector-header {
+    padding: 16px 16px 12px; border-bottom: 1px solid var(--t5);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .inspector-title {
+    font-size: 9px; font-weight: 600;
+    letter-spacing: 2px; text-transform: uppercase; color: var(--t3);
+  }
+  .inspector-close {
+    font-size: 14px; color: var(--t3); cursor: pointer;
+    width: 22px; height: 22px; display: flex;
+    align-items: center; justify-content: center;
+    border-radius: 6px; transition: all 0.15s ease;
+  }
+  .inspector-close:hover { background: rgba(0,0,0,0.05); color: var(--t1); }
+
+  .inspector-tabs { display: flex; border-bottom: 1px solid var(--t5); padding: 0 4px; }
+  .tab {
+    flex: 1; padding: 10px 0; text-align: center;
+    font-size: 10px; font-weight: 500; letter-spacing: 1px;
+    text-transform: uppercase; color: var(--t3);
+    cursor: pointer; border-bottom: 2px solid transparent;
+    transition: all 0.2s ease; user-select: none;
+  }
+  .tab:hover { color: var(--t2); }
+  .tab.active { color: var(--t1); border-bottom-color: var(--gold); }
+
+  .inspector-scroll { flex: 1; overflow-y: auto; padding: 6px 16px; }
+  .inspector-empty {
+    display: flex; flex-direction: column; align-items: center;
+    justify-content: center; height: 100%; color: var(--t4);
+    font-size: 12px; gap: 8px; text-align: center; padding: 20px;
+  }
+  .inspector-empty-icon { font-size: 28px; opacity: 0.3; }
+
+  .mem-detail { padding: 16px 0; }
+  .mem-detail-content {
+    font-family: var(--font-mono); font-size: 12px;
+    font-weight: 400; line-height: 1.7; color: var(--t1);
+    margin-bottom: 12px;
+  }
+  .mem-detail-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 12px; }
+  .mem-detail-strength { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+  .mem-detail-strength-label {
+    font-size: 10px; color: var(--t3); font-family: var(--font-mono);
+  }
+  .sbar { width: 80px; height: 3px; background: var(--t5); border-radius: 2px; overflow: hidden; }
+  .sfill { height: 100%; border-radius: 2px; background: var(--earth); transition: width 0.6s ease; }
+  .mem-detail-meta {
+    font-size: 10px; color: var(--t3); font-family: var(--font-mono);
+    display: flex; flex-direction: column; gap: 4px;
+  }
+
+  .mem {
+    padding: 14px 0; border-bottom: 1px solid var(--t6);
+    cursor: pointer; transition: all 0.15s ease;
+  }
+  .mem:hover {
+    background: var(--cream-bg); margin: 0 -16px;
+    padding: 14px 16px; border-radius: 8px;
+  }
+  .mem-text {
+    font-family: var(--font-mono); font-size: 12px;
+    font-weight: 400; line-height: 1.7; color: var(--t1);
+  }
+  .mem-meta {
+    display: flex; align-items: center; gap: 8px;
+    margin-top: 8px; font-family: var(--font-mono);
+    font-size: 10px; color: var(--t3);
+  }
+  .mtag {
+    font-size: 9px; letter-spacing: 1px; text-transform: uppercase;
+    padding: 3px 8px; border-radius: 4px;
+    border: 1px solid var(--t5); color: var(--t2); font-weight: 500;
+  }
+  .mtag.principle { border-color: var(--sage-dim); color: var(--sage); background: var(--sage-bg); }
+  .mtag.artifact { border-color: var(--gold-dim); color: var(--gold); background: var(--gold-bg); }
+
+  .edge-item {
+    padding: 10px 0; border-bottom: 1px solid var(--t6);
+    font-size: 11px; color: var(--t2); cursor: pointer;
+  }
+  .edge-item:hover { color: var(--t1); }
+  .edge-type {
+    font-family: var(--font-mono); font-size: 9px;
+    letter-spacing: 1px; text-transform: uppercase;
+    color: var(--t3); margin-bottom: 4px;
+  }
+  .edge-target { color: var(--t1); font-weight: 500; }
+
+  .artifacts-zone { border-top: 1px solid var(--t5); padding: 14px 16px; }
+  .zlabel {
+    font-size: 9px; font-weight: 600;
+    letter-spacing: 2px; text-transform: uppercase;
+    color: var(--t3); margin-bottom: 10px;
+  }
+  .arow {
+    display: flex; align-items: center; gap: 10px;
+    padding: 7px 0; font-size: 11px; font-weight: 400;
+    color: var(--t2); cursor: pointer; transition: all 0.15s ease;
+  }
+  .arow:hover { color: var(--t1); }
+  .adot2 { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+  .adot2.shipped { background: var(--sage); box-shadow: 0 0 6px var(--sage-dim); }
+  .adot2.drafting { background: var(--terra); box-shadow: 0 0 6px var(--terra-dim); }
+
+  /* === STATUSBAR === */
+  .statusbar {
+    grid-column: 1/-1;
+    background: var(--panel);
+    backdrop-filter: blur(40px) saturate(1.5);
+    -webkit-backdrop-filter: blur(40px) saturate(1.5);
+    border: 1px solid var(--border); border-radius: 8px;
+    box-shadow: var(--shadow);
+    display: flex; align-items: center;
+    padding: 0 16px; gap: 20px;
+    font-size: 10px; font-weight: 400; color: var(--t3);
+  }
+  .si { display: flex; align-items: center; gap: 5px; }
+  .sv { color: var(--t1); font-weight: 500; font-family: var(--font-mono); }
+  .sg { margin-left: auto; display: flex; align-items: center; gap: 6px; }
+
+  /* === AUTH GATE === */
+  .auth-overlay {
+    position: fixed; inset: 0; z-index: 9999;
+    background: rgba(0,0,0,0.5);
+    backdrop-filter: blur(20px);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .auth-overlay.hidden { display: none; }
+  .auth-card {
+    background: var(--panel-solid);
+    border: 1px solid var(--border); border-radius: 16px;
+    box-shadow: 0 24px 80px rgba(0,0,0,0.2);
+    padding: 40px; width: 360px; text-align: center;
+  }
+  .auth-brand {
+    font-weight: 200; font-size: 14px;
+    letter-spacing: 6px; text-transform: uppercase;
+    color: var(--t3); margin-bottom: 24px;
+  }
+  .auth-label {
+    font-size: 11px; color: var(--t2); margin-bottom: 12px;
+    text-align: left;
+  }
+  .auth-input {
+    width: 100%; padding: 10px 14px;
+    background: rgba(0,0,0,0.04); border: 1px solid var(--border);
+    border-radius: 8px; font-family: var(--font-mono);
+    font-size: 12px; color: var(--t1); outline: none;
+    transition: border-color 0.15s ease;
+  }
+  .auth-input:focus { border-color: var(--gold-dim); }
+  .auth-submit {
+    margin-top: 16px; width: 100%; padding: 10px;
+    background: var(--earth); color: rgba(255,255,255,0.9);
+    border: none; border-radius: 8px; font-family: var(--font-ui);
+    font-size: 12px; font-weight: 500; letter-spacing: 1px;
+    text-transform: uppercase; cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  .auth-submit:hover { background: var(--gold); }
+  .auth-error {
+    margin-top: 10px; font-size: 11px; color: var(--danger);
+    min-height: 16px;
+  }
+
+  /* === SETTINGS PANEL === */
+  .settings-overlay {
+    position: fixed; inset: 0; z-index: 500;
+    background: rgba(0,0,0,0.3);
+    backdrop-filter: blur(8px);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .settings-overlay.hidden { display: none; }
+  .settings-card {
+    background: var(--panel-solid);
+    border: 1px solid var(--border); border-radius: 16px;
+    box-shadow: 0 24px 80px rgba(0,0,0,0.15);
+    padding: 32px; width: 400px;
+  }
+  .settings-title {
+    font-size: 9px; font-weight: 600;
+    letter-spacing: 2px; text-transform: uppercase;
+    color: var(--t3); margin-bottom: 20px;
+  }
+  .settings-section {
+    font-size: 10px; font-weight: 500;
+    letter-spacing: 1px; text-transform: uppercase;
+    color: var(--t4); margin-bottom: 10px; margin-top: 16px;
+  }
+  .settings-section:first-of-type { margin-top: 0; }
+  .theme-swatches { display: flex; gap: 8px; flex-wrap: wrap; }
+  .theme-swatch {
+    width: 48px; height: 48px; border-radius: 10px;
+    border: 2px solid transparent; cursor: pointer;
+    transition: all 0.15s ease; position: relative;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .theme-swatch:hover { transform: scale(1.08); }
+  .theme-swatch.active { border-color: var(--gold); }
+  .theme-swatch-label {
+    font-size: 8px; font-weight: 600; letter-spacing: 1px;
+    text-transform: uppercase; position: absolute; bottom: -16px;
+  }
+  .swatch-olive { background: #c2c4b4; }
+  .swatch-ink { background: #1a1a1f; }
+  .swatch-linen { background: #d6cfc0; }
+  .swatch-slate { background: #b8bcc2; }
+  .swatch-void { background: #0a0a0c; }
+  .settings-close {
+    margin-top: 24px; text-align: right;
+  }
+  .settings-close-btn {
+    font-size: 11px; color: var(--t3); cursor: pointer;
+    padding: 6px 14px; border-radius: 6px;
+    border: 1px solid var(--border); background: none;
+    font-family: var(--font-ui); transition: all 0.15s ease;
+  }
+  .settings-close-btn:hover { color: var(--t1); border-color: var(--border-hover); }
+
+  /* === DISCONNECTED BANNER === */
+  .disconnected-banner {
+    position: fixed; top: 0; left: 0; right: 0;
+    z-index: 200; padding: 8px 16px;
+    background: var(--danger-bg); border-bottom: 1px solid var(--danger-dim);
+    text-align: center; font-size: 11px; color: var(--danger);
+    font-weight: 500; letter-spacing: 0.5px;
+    backdrop-filter: blur(20px);
+    transition: transform 0.3s ease;
+  }
+  .disconnected-banner.hidden { transform: translateY(-100%); pointer-events: none; }
+
+  /* === SCROLLBAR === */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--t5); border-radius: 2px; }
+
+  @keyframes flash-gold { 0% { background: var(--gold-bg); } 100% { background: transparent; } }
+</style>
+</head>
+<body>
+
+<canvas id="thermal"></canvas>
+<div class="grain"></div>
+
+<div class="disconnected-banner hidden" id="disconnected-banner">
+  Connection lost. Reconnecting...
+</div>
+
+<div class="cockpit">
+  <aside class="glass sidebar" id="sidebar"></aside>
+
+  <main class="main-area" id="main-area">
+    <canvas id="graph-canvas"></canvas>
+    <div class="search-pill" id="search-pill"></div>
+    <div class="ctx-menu" id="ctx-menu"></div>
+    <div class="zoom-bar" id="zoom-bar"></div>
+    <div class="view-toggle" id="view-toggle"></div>
+  </main>
+
+  <aside class="glass inspector" id="inspector"></aside>
+
+  <footer class="statusbar" id="statusbar"></footer>
+</div>
+
+<div class="auth-overlay hidden" id="auth-overlay"></div>
+<div class="settings-overlay hidden" id="settings-overlay"></div>
+
+<script>
+(function() {
+  'use strict';
+
+  // ===== CONFIG =====
+  var API_BASE = 'http://localhost:3001';
+  var TOKEN_KEY = 'ff-token';
+
+  // ===== SAFE DOM HELPERS =====
+  // Clear all children without innerHTML
+  function clearEl(node) {
+    while (node.firstChild) node.removeChild(node.firstChild);
+  }
+
+  function el(tag, attrs, children) {
+    var e = document.createElement(tag);
+    if (attrs) {
+      var keys = Object.keys(attrs);
+      for (var k = 0; k < keys.length; k++) {
+        var key = keys[k];
+        var val = attrs[key];
+        if (key === 'className') e.className = val;
+        else if (key === 'textContent') e.textContent = val;
+        else if (key.startsWith('on')) e.addEventListener(key.slice(2).toLowerCase(), val);
+        else if (key === 'style' && typeof val === 'object') Object.assign(e.style, val);
+        else e.setAttribute(key, val);
+      }
+    }
+    if (children) {
+      if (!Array.isArray(children)) children = [children];
+      for (var i = 0; i < children.length; i++) {
+        var c = children[i];
+        if (typeof c === 'string') e.appendChild(document.createTextNode(c));
+        else if (c) e.appendChild(c);
+      }
+    }
+    return e;
+  }
+
+  function txt(str) { return document.createTextNode(str); }
+
+  // ===== STATE =====
+  var state = {
+    token: localStorage.getItem(TOKEN_KEY) || '',
+    nodes: [],
+    edges: [],
+    nodeMap: new Map(),
+    selectedId: null,
+    selectedMemory: null,
+    selectedEdges: [],
+    artifacts: [],
+    guardianTemp: 0.15,
+    guardianState: 'calm',
+    guardianSignals: [],
+    memoryCount: 0,
+    sessionCount: 0,
+    edgeCount: 0,
+    avgStrength: 0,
+    connected: false,
+    searchQuery: '',
+    searchMatches: new Set(),
+    theme: localStorage.getItem('ff-theme') || 'olive',
+    camX: 0, camY: 0, zoom: 1,
+    simRunning: true,
+    dragNode: null, dragOffX: 0, dragOffY: 0,
+    isPanning: false, panStartX: 0, panStartY: 0, panCamStartX: 0, panCamStartY: 0,
+    ctxNodeId: null,
+    inspectorTab: 'memory',
+    eventSource: null,
+    reconnectTimer: null,
+  };
+
+  // ===== API =====
+  function authHeaders() {
+    return { 'Authorization': 'Bearer ' + state.token, 'Content-Type': 'application/json' };
+  }
+
+  function api(path, opts) {
+    var config = Object.assign({ headers: authHeaders() }, opts || {});
+    return fetch(API_BASE + path, config).then(function(res) {
+      if (!res.ok) throw new Error('API error: ' + res.status);
+      return res.json();
+    });
+  }
+
+  function debounce(fn, ms) {
+    var t; return function() {
+      var args = arguments; var self = this;
+      clearTimeout(t); t = setTimeout(function() { fn.apply(self, args); }, ms);
+    };
+  }
+
+  function nodeColorRaw(memory) {
+    if (memory.memoryType === 'principle') return [160, 125, 66];
+    if (memory.memoryType === 'artifact') return [94, 138, 82];
+    if (memory.readiness !== undefined && memory.readiness < 0.5) return [176, 125, 80];
+    return [107, 89, 64];
+  }
+
+  function nodeRadius(memory) {
+    return 4 + (memory.strength || 0.5) * 8;
+  }
+
+  function truncate(str, len) {
+    if (!str) return '';
+    return str.length > len ? str.slice(0, len) + '...' : str;
+  }
+
+  // ===== AUTH GATE =====
+  function showAuth() {
+    var overlay = document.getElementById('auth-overlay');
+    overlay.classList.remove('hidden');
+    clearEl(overlay);
+
+    var card = el('div', { className: 'auth-card' });
+    card.appendChild(el('div', { className: 'auth-brand', textContent: 'forge' }));
+    card.appendChild(el('div', { className: 'auth-label', textContent: 'Enter your FORGEFRAME_TOKEN to continue' }));
+
+    var input = el('input', { className: 'auth-input', type: 'password', placeholder: 'Token...' });
+    card.appendChild(input);
+
+    var errDiv = el('div', { className: 'auth-error' });
+    card.appendChild(errDiv);
+
+    var btn = el('button', { className: 'auth-submit', textContent: 'Connect' });
+    btn.addEventListener('click', function() {
+      var val = input.value.trim();
+      if (!val) { errDiv.textContent = 'Token is required'; return; }
+      state.token = val;
+      fetch(API_BASE + '/api/status', { headers: { 'Authorization': 'Bearer ' + val } })
+        .then(function(r) { if (!r.ok) throw new Error('invalid'); return r.json(); })
+        .then(function() {
+          localStorage.setItem(TOKEN_KEY, val);
+          overlay.classList.add('hidden');
+          boot();
+        })
+        .catch(function() {
+          errDiv.textContent = 'Invalid token or server unreachable';
+          state.token = '';
+        });
+    });
+    card.appendChild(btn);
+
+    input.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') btn.click();
+    });
+
+    overlay.appendChild(card);
+    setTimeout(function() { input.focus(); }, 100);
+  }
+
+  // ===== THERMAL SHADER =====
+  var glCtx = null;
+  var uTime, uRes, uTemp;
+
+  function initThermal() {
+    var c = document.getElementById('thermal');
+    var gl = c.getContext('webgl2');
+    if (!gl) return;
+    glCtx = gl;
+
+    function resize() { c.width = innerWidth; c.height = innerHeight; gl.viewport(0, 0, c.width, c.height); }
+    resize();
+    window.addEventListener('resize', resize);
+
+    var vs = '#version 300 es\nin vec2 a;\nvoid main(){gl_Position=vec4(a,0,1);}';
+
+    var fs = [
+      '#version 300 es',
+      'precision highp float;',
+      'uniform float t,temp; uniform vec2 r; out vec4 o;',
+      'float h(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5);}',
+      'float n(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(h(i),h(i+vec2(1,0)),f.x),mix(h(i+vec2(0,1)),h(i+vec2(1,1)),f.x),f.y);}',
+      'float fb(vec2 p){float v=0.,a=.5;mat2 m=mat2(.8,.6,-.6,.8);for(int i=0;i<5;i++){v+=a*n(p);p=m*p*2.;a*=.5;}return v;}',
+      'void main(){',
+      '  vec2 uv=gl_FragCoord.xy/r; float s=t*.015;',
+      '  float n1=fb(uv*2.5+s),n2=fb(uv*3.5-s*.8+100.); float p=n1*n2;',
+      '  vec3 calm=vec3(.75,.76,.69);',
+      '  vec3 mid=vec3(.82,.78,.68);',
+      '  vec3 hot=vec3(.85,.74,.65);',
+      '  vec3 base=mix(calm,mid,smoothstep(0.,.5,temp));',
+      '  base=mix(base,hot,smoothstep(.5,1.,temp));',
+      '  float i=.05+temp*.07;',
+      '  vec3 vr=mix(vec3(-.01,-.005,.02),vec3(.03,-.01,-.025),temp);',
+      '  vec3 col=base+p*i+vr*p;',
+      '  float vig=1.-length((uv-.5)*1.2)*.1;',
+      '  col*=vig; col+=.002*sin(s*3.+uv.x*10.);',
+      '  o=vec4(col,1);',
+      '}'
+    ].join('\n');
+
+    function comp(type, src) {
+      var sh = gl.createShader(type);
+      gl.shaderSource(sh, src);
+      gl.compileShader(sh);
+      return sh;
+    }
+
+    var pr = gl.createProgram();
+    gl.attachShader(pr, comp(gl.VERTEX_SHADER, vs));
+    gl.attachShader(pr, comp(gl.FRAGMENT_SHADER, fs));
+    gl.linkProgram(pr);
+    gl.useProgram(pr);
+
+    var b = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, b);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1,1,-1,-1,1,1,1]), gl.STATIC_DRAW);
+    var aLoc = gl.getAttribLocation(pr, 'a');
+    gl.enableVertexAttribArray(aLoc);
+    gl.vertexAttribPointer(aLoc, 2, gl.FLOAT, false, 0, 0);
+
+    uTime = gl.getUniformLocation(pr, 't');
+    uRes = gl.getUniformLocation(pr, 'r');
+    uTemp = gl.getUniformLocation(pr, 'temp');
+  }
+
+  function drawThermal(time) {
+    if (!glCtx) return;
+    var c = document.getElementById('thermal');
+    glCtx.uniform1f(uTime, time * 0.001);
+    glCtx.uniform2f(uRes, c.width, c.height);
+    glCtx.uniform1f(uTemp, state.guardianTemp);
+    glCtx.drawArrays(glCtx.TRIANGLE_STRIP, 0, 4);
+  }
+
+  // ===== FORCE-DIRECTED GRAPH =====
+  var graphCanvas = document.getElementById('graph-canvas');
+  var gCtx = graphCanvas.getContext('2d');
+
+  function resizeGraph() {
+    var rect = document.getElementById('main-area').getBoundingClientRect();
+    graphCanvas.width = rect.width * devicePixelRatio;
+    graphCanvas.height = rect.height * devicePixelRatio;
+    graphCanvas.style.width = rect.width + 'px';
+    graphCanvas.style.height = rect.height + 'px';
+    gCtx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+  }
+
+  function initNodePositions() {
+    var w = graphCanvas.width / devicePixelRatio;
+    var h = graphCanvas.height / devicePixelRatio;
+    for (var i = 0; i < state.nodes.length; i++) {
+      var node = state.nodes[i];
+      if (node.x === undefined) {
+        node.x = (Math.random() - 0.5) * w * 0.6;
+        node.y = (Math.random() - 0.5) * h * 0.6;
+        node.vx = 0;
+        node.vy = 0;
+      }
+    }
+  }
+
+  function simulateForces() {
+    if (!state.simRunning) return;
+    var nodes = state.nodes;
+    var edges = state.edges;
+    var repulsion = 800;
+    var attraction = 0.005;
+    var centerGravity = 0.01;
+    var damping = 0.88;
+
+    for (var i = 0; i < nodes.length; i++) {
+      for (var j = i + 1; j < nodes.length; j++) {
+        var a = nodes[i], b = nodes[j];
+        var dx = b.x - a.x;
+        var dy = b.y - a.y;
+        var dist = Math.sqrt(dx * dx + dy * dy) || 1;
+        var force = repulsion / (dist * dist);
+        var fx = (dx / dist) * force;
+        var fy = (dy / dist) * force;
+        a.vx -= fx; a.vy -= fy;
+        b.vx += fx; b.vy += fy;
+      }
+    }
+
+    for (var e = 0; e < edges.length; e++) {
+      var edge = edges[e];
+      var ea = state.nodeMap.get(edge.sourceId);
+      var eb = state.nodeMap.get(edge.targetId);
+      if (!ea || !eb) continue;
+      var edx = eb.x - ea.x;
+      var edy = eb.y - ea.y;
+      var edist = Math.sqrt(edx * edx + edy * edy) || 1;
+      var eforce = (edist - 80) * attraction;
+      var efx = (edx / edist) * eforce;
+      var efy = (edy / edist) * eforce;
+      ea.vx += efx; ea.vy += efy;
+      eb.vx -= efx; eb.vy -= efy;
+    }
+
+    for (var n = 0; n < nodes.length; n++) {
+      var nd = nodes[n];
+      if (state.dragNode === nd) continue;
+      nd.vx -= nd.x * centerGravity;
+      nd.vy -= nd.y * centerGravity;
+      nd.vx *= damping;
+      nd.vy *= damping;
+      nd.x += nd.vx;
+      nd.y += nd.vy;
+    }
+  }
+
+  function drawGraph() {
+    var w = graphCanvas.width / devicePixelRatio;
+    var h = graphCanvas.height / devicePixelRatio;
+    gCtx.clearRect(0, 0, w, h);
+    gCtx.save();
+
+    var cx = w / 2 + state.camX;
+    var cy = h / 2 + state.camY;
+    gCtx.translate(cx, cy);
+    gCtx.scale(state.zoom, state.zoom);
+
+    var searching = state.searchQuery.length > 0;
+
+    // Edges
+    for (var e = 0; e < state.edges.length; e++) {
+      var edge = state.edges[e];
+      var ea = state.nodeMap.get(edge.sourceId);
+      var eb = state.nodeMap.get(edge.targetId);
+      if (!ea || !eb) continue;
+      var edimmed = searching && (!state.searchMatches.has(edge.sourceId) && !state.searchMatches.has(edge.targetId));
+      gCtx.beginPath();
+      gCtx.moveTo(ea.x, ea.y);
+      gCtx.lineTo(eb.x, eb.y);
+      gCtx.strokeStyle = edimmed ? 'rgba(107,89,64,0.02)' : 'rgba(107,89,64,0.1)';
+      gCtx.lineWidth = (edge.weight || 0.5) * 1.5;
+      gCtx.stroke();
+    }
+
+    // Nodes
+    for (var i = 0; i < state.nodes.length; i++) {
+      var node = state.nodes[i];
+      var r = nodeRadius(node);
+      var col = nodeColorRaw(node);
+      var dimmed = searching && !state.searchMatches.has(node.id);
+      var selected = node.id === state.selectedId;
+      var alpha = dimmed ? 0.05 : (0.2 + (node.strength || 0.5) * 0.5);
+      var glowAlpha = dimmed ? 0 : (selected ? 0.4 : (node.strength || 0.5) * 0.15);
+
+      if (glowAlpha > 0) {
+        gCtx.beginPath();
+        gCtx.arc(node.x, node.y, r + 6, 0, Math.PI * 2);
+        gCtx.fillStyle = 'rgba(' + col[0] + ',' + col[1] + ',' + col[2] + ',' + glowAlpha + ')';
+        gCtx.fill();
+      }
+
+      if (selected) {
+        gCtx.beginPath();
+        gCtx.arc(node.x, node.y, r + 3, 0, Math.PI * 2);
+        gCtx.strokeStyle = 'rgba(' + col[0] + ',' + col[1] + ',' + col[2] + ',0.5)';
+        gCtx.lineWidth = 1.5;
+        gCtx.stroke();
+      }
+
+      gCtx.beginPath();
+      gCtx.arc(node.x, node.y, r, 0, Math.PI * 2);
+      gCtx.fillStyle = 'rgba(' + col[0] + ',' + col[1] + ',' + col[2] + ',' + alpha + ')';
+      gCtx.fill();
+
+      if (r > 5 && !dimmed) {
+        var label = truncate(node.content, 20);
+        gCtx.font = (selected ? '500' : '400') + ' 10px Inter, sans-serif';
+        gCtx.fillStyle = selected ? 'rgba(28,25,23,0.75)' : 'rgba(28,25,23,0.45)';
+        gCtx.fillText(label, node.x + r + 6, node.y + 3);
+      }
+    }
+
+    gCtx.restore();
+  }
+
+  // ===== MOUSE INTERACTIONS =====
+  function screenToWorld(sx, sy) {
+    var rect = graphCanvas.getBoundingClientRect();
+    var w = rect.width;
+    var h = rect.height;
+    var cx = w / 2 + state.camX;
+    var cy = h / 2 + state.camY;
+    return {
+      x: (sx - rect.left - cx) / state.zoom,
+      y: (sy - rect.top - cy) / state.zoom,
+    };
+  }
+
+  function hitTest(wx, wy) {
+    for (var i = state.nodes.length - 1; i >= 0; i--) {
+      var node = state.nodes[i];
+      var r = nodeRadius(node) + 4;
+      var dx = wx - node.x;
+      var dy = wy - node.y;
+      if (dx * dx + dy * dy < r * r) return node;
+    }
+    return null;
+  }
+
+  var dragMoved = false;
+
+  graphCanvas.addEventListener('mousedown', function(e) {
+    if (e.button === 2) return;
+    dragMoved = false;
+    var world = screenToWorld(e.clientX, e.clientY);
+    var hit = hitTest(world.x, world.y);
+
+    if (hit) {
+      state.dragNode = hit;
+      state.dragOffX = world.x - hit.x;
+      state.dragOffY = world.y - hit.y;
+      graphCanvas.classList.add('dragging');
+    } else {
+      state.isPanning = true;
+      state.panStartX = e.clientX;
+      state.panStartY = e.clientY;
+      state.panCamStartX = state.camX;
+      state.panCamStartY = state.camY;
+      graphCanvas.classList.add('dragging');
+    }
+  });
+
+  window.addEventListener('mousemove', function(e) {
+    if (state.dragNode) {
+      dragMoved = true;
+      var world = screenToWorld(e.clientX, e.clientY);
+      state.dragNode.x = world.x - state.dragOffX;
+      state.dragNode.y = world.y - state.dragOffY;
+      state.dragNode.vx = 0;
+      state.dragNode.vy = 0;
+    } else if (state.isPanning) {
+      dragMoved = true;
+      state.camX = state.panCamStartX + (e.clientX - state.panStartX);
+      state.camY = state.panCamStartY + (e.clientY - state.panStartY);
+    }
+  });
+
+  window.addEventListener('mouseup', function() {
+    state.dragNode = null;
+    state.isPanning = false;
+    graphCanvas.classList.remove('dragging');
+  });
+
+  graphCanvas.addEventListener('click', function(e) {
+    if (dragMoved) return;
+    var world = screenToWorld(e.clientX, e.clientY);
+    var hit = hitTest(world.x, world.y);
+    if (hit) {
+      selectNode(hit.id);
+    } else {
+      selectNode(null);
+    }
+    hideCtxMenu();
+  });
+
+  graphCanvas.addEventListener('wheel', function(e) {
+    e.preventDefault();
+    var delta = e.deltaY > 0 ? 0.92 : 1.08;
+    state.zoom = Math.max(0.1, Math.min(5, state.zoom * delta));
+  }, { passive: false });
+
+  graphCanvas.addEventListener('contextmenu', function(e) {
+    e.preventDefault();
+    var world = screenToWorld(e.clientX, e.clientY);
+    var hit = hitTest(world.x, world.y);
+    if (hit) {
+      state.ctxNodeId = hit.id;
+      selectNode(hit.id);
+      showCtxMenu(e.clientX, e.clientY);
+    }
+  });
+
+  // ===== CONTEXT MENU =====
+  function buildCtxMenu() {
+    var menu = document.getElementById('ctx-menu');
+    clearEl(menu);
+
+    var items = [
+      { label: 'Open', key: '\u2318O', action: 'open' },
+      { label: 'Edit', key: '\u2318E', action: 'edit' },
+      { label: 'Link', key: '\u2318L', action: 'link' },
+      null,
+      { label: 'Promote', key: '\u2318P', action: 'promote' },
+      { label: 'Tag', key: '', action: 'tag' },
+    ];
+
+    for (var i = 0; i < items.length; i++) {
+      var item = items[i];
+      if (!item) {
+        menu.appendChild(el('div', { className: 'ctx-sep' }));
+        continue;
+      }
+      var row = el('div', { className: 'ctx-item' });
+      row.appendChild(txt(item.label));
+      if (item.key) {
+        row.appendChild(el('span', { className: 'ctx-key', textContent: item.key }));
+      }
+      (function(action) {
+        row.addEventListener('click', function() {
+          handleCtxAction(action, state.ctxNodeId);
+          hideCtxMenu();
+        });
+      })(item.action);
+      menu.appendChild(row);
+    }
+  }
+
+  function showCtxMenu(x, y) {
+    var menu = document.getElementById('ctx-menu');
+    menu.style.left = (x + 8) + 'px';
+    menu.style.top = (y - 8) + 'px';
+    menu.classList.add('visible');
+  }
+
+  function hideCtxMenu() {
+    document.getElementById('ctx-menu').classList.remove('visible');
+  }
+
+  function handleCtxAction(action, nodeId) {
+    if (!nodeId) return;
+    if (action === 'promote') {
+      api('/api/memories/' + nodeId + '/promote', { method: 'POST' }).catch(function() {});
+    }
+  }
+
+  // ===== NODE SELECTION + INSPECTOR =====
+  function selectNode(id) {
+    state.selectedId = id;
+    if (!id) {
+      state.selectedMemory = null;
+      state.selectedEdges = [];
+      renderInspector();
+      return;
+    }
+    var node = state.nodeMap.get(id);
+    state.selectedMemory = node || null;
+    renderInspector();
+    api('/api/memories/' + id + '/edges')
+      .then(function(edgeData) {
+        state.selectedEdges = Array.isArray(edgeData) ? edgeData : (edgeData.edges || []);
+        renderInspector();
+      })
+      .catch(function() { state.selectedEdges = []; });
+  }
+
+  function renderInspector() {
+    var panel = document.getElementById('inspector');
+    clearEl(panel);
+
+    // Header
+    var hdr = el('div', { className: 'inspector-header' });
+    hdr.appendChild(el('span', { className: 'inspector-title', textContent: 'Inspector' }));
+    var closeBtn = el('span', { className: 'inspector-close', textContent: '\u00d7' });
+    closeBtn.addEventListener('click', function() { selectNode(null); });
+    hdr.appendChild(closeBtn);
+    panel.appendChild(hdr);
+
+    // Tabs
+    var tabs = el('div', { className: 'inspector-tabs' });
+    var tabNames = ['memory', 'edges', 'history'];
+    for (var ti = 0; ti < tabNames.length; ti++) {
+      (function(t) {
+        var tab = el('div', {
+          className: 'tab' + (state.inspectorTab === t ? ' active' : ''),
+          textContent: t.charAt(0).toUpperCase() + t.slice(1),
+        });
+        tab.addEventListener('click', function() {
+          state.inspectorTab = t;
+          renderInspector();
+        });
+        tabs.appendChild(tab);
+      })(tabNames[ti]);
+    }
+    panel.appendChild(tabs);
+
+    var scroll = el('div', { className: 'inspector-scroll' });
+
+    if (!state.selectedMemory) {
+      var empty = el('div', { className: 'inspector-empty' });
+      empty.appendChild(el('div', { className: 'inspector-empty-icon', textContent: '\u25C7' }));
+      empty.appendChild(el('div', { textContent: 'Select a node to inspect' }));
+      scroll.appendChild(empty);
+      panel.appendChild(scroll);
+      renderArtifactsZone(panel);
+      return;
+    }
+
+    var mem = state.selectedMemory;
+
+    if (state.inspectorTab === 'memory') {
+      var detail = el('div', { className: 'mem-detail' });
+
+      var content = el('div', { className: 'mem-detail-content' });
+      content.textContent = mem.content || '';
+      detail.appendChild(content);
+
+      if (mem.tags && mem.tags.length > 0) {
+        var tagsDiv = el('div', { className: 'mem-detail-tags' });
+        for (var tg = 0; tg < mem.tags.length; tg++) {
+          var tagName = mem.tags[tg];
+          var cls = 'mtag' + (tagName === 'principle' ? ' principle' : '') + (mem.memoryType === 'artifact' ? ' artifact' : '');
+          var tagEl = el('span', { className: cls });
+          tagEl.textContent = tagName;
+          tagsDiv.appendChild(tagEl);
+        }
+        detail.appendChild(tagsDiv);
+      }
+
+      var strengthDiv = el('div', { className: 'mem-detail-strength' });
+      strengthDiv.appendChild(el('span', { className: 'mem-detail-strength-label', textContent: 'strength' }));
+      var sbar = el('div', { className: 'sbar' });
+      var sfill = el('div', { className: 'sfill' });
+      sfill.style.width = ((mem.strength || 0) * 100) + '%';
+      sbar.appendChild(sfill);
+      strengthDiv.appendChild(sbar);
+      strengthDiv.appendChild(el('span', { className: 'mem-detail-strength-label', textContent: (mem.strength || 0).toFixed(2) }));
+      detail.appendChild(strengthDiv);
+
+      var meta = el('div', { className: 'mem-detail-meta' });
+      meta.appendChild(el('div', { textContent: 'type: ' + (mem.memoryType || 'semantic') }));
+      meta.appendChild(el('div', { textContent: 'id: ' + (mem.id || '').slice(0, 12) }));
+      if (mem.createdAt) meta.appendChild(el('div', { textContent: 'created: ' + new Date(mem.createdAt).toLocaleDateString() }));
+      if (mem.accessCount !== undefined) meta.appendChild(el('div', { textContent: 'accessed: ' + mem.accessCount + 'x' }));
+      detail.appendChild(meta);
+
+      scroll.appendChild(detail);
+    } else if (state.inspectorTab === 'edges') {
+      if (state.selectedEdges.length === 0) {
+        var emptyEdges = el('div', { className: 'inspector-empty' });
+        emptyEdges.appendChild(el('div', { textContent: 'No edges' }));
+        scroll.appendChild(emptyEdges);
+      } else {
+        for (var ei = 0; ei < state.selectedEdges.length; ei++) {
+          var edge = state.selectedEdges[ei];
+          var edgeItem = el('div', { className: 'edge-item' });
+          var typeDiv = el('div', { className: 'edge-type' });
+          typeDiv.textContent = edge.edgeType || edge.type || 'related';
+          edgeItem.appendChild(typeDiv);
+          var targetId = edge.sourceId === state.selectedId ? edge.targetId : edge.sourceId;
+          var targetNode = state.nodeMap.get(targetId);
+          var targetDiv = el('div', { className: 'edge-target' });
+          targetDiv.textContent = targetNode ? truncate(targetNode.content, 40) : targetId;
+          edgeItem.appendChild(targetDiv);
+          (function(tid) {
+            edgeItem.addEventListener('click', function() { selectNode(tid); });
+          })(targetId);
+          scroll.appendChild(edgeItem);
+        }
+      }
+    } else {
+      var emptyHist = el('div', { className: 'inspector-empty' });
+      emptyHist.appendChild(el('div', { textContent: 'History coming soon' }));
+      scroll.appendChild(emptyHist);
+    }
+
+    panel.appendChild(scroll);
+    renderArtifactsZone(panel);
+  }
+
+  function renderArtifactsZone(panel) {
+    if (state.artifacts.length === 0) return;
+    var zone = el('div', { className: 'artifacts-zone' });
+    zone.appendChild(el('div', { className: 'zlabel', textContent: 'Artifacts' }));
+    for (var ai = 0; ai < state.artifacts.length; ai++) {
+      var art = state.artifacts[ai];
+      var row = el('div', { className: 'arow' });
+      row.appendChild(el('div', { className: 'adot2 shipped' }));
+      var aLabel = el('span', { className: 'alabel' });
+      aLabel.textContent = truncate(art.content || art.id, 30);
+      row.appendChild(aLabel);
+      (function(artId) {
+        row.addEventListener('click', function() { selectNode(artId); });
+      })(art.id);
+      zone.appendChild(row);
+    }
+    panel.appendChild(zone);
+  }
+
+  // ===== SIDEBAR =====
+  function renderSidebar() {
+    var sb = document.getElementById('sidebar');
+    clearEl(sb);
+
+    sb.appendChild(el('div', { className: 'brand', textContent: 'forge' }));
+
+    sb.appendChild(el('div', { className: 'nav-label', textContent: 'Views' }));
+    var views = [
+      { name: 'graph', count: null, active: true },
+      { name: 'memories', count: state.memoryCount },
+      { name: 'sessions', count: state.sessionCount },
+    ];
+    for (var vi = 0; vi < views.length; vi++) {
+      var v = views[vi];
+      var navItem = el('div', { className: 'nav-item' + (v.active ? ' active' : '') });
+      navItem.appendChild(el('div', { className: 'nav-dot' }));
+      navItem.appendChild(txt(v.name));
+      if (v.count !== null) {
+        navItem.appendChild(el('span', { className: 'nav-count', textContent: String(v.count) }));
+      }
+      sb.appendChild(navItem);
+    }
+
+    // Tags
+    var tagCounts = new Map();
+    for (var ni = 0; ni < state.nodes.length; ni++) {
+      var node = state.nodes[ni];
+      if (node.tags) {
+        for (var ti2 = 0; ti2 < node.tags.length; ti2++) {
+          var tag = node.tags[ti2];
+          tagCounts.set(tag, (tagCounts.get(tag) || 0) + 1);
+        }
+      }
+    }
+    if (tagCounts.size > 0) {
+      sb.appendChild(el('div', { className: 'nav-label', textContent: 'Tags' }));
+      var sorted = Array.from(tagCounts.entries()).sort(function(a, b) { return b[1] - a[1]; }).slice(0, 8);
+      for (var si = 0; si < sorted.length; si++) {
+        (function(tagName, count) {
+          var tagItem = el('div', { className: 'nav-item' });
+          var dot = el('div', { className: 'nav-dot' });
+          if (tagName === 'principle') dot.style.background = 'var(--sage)';
+          else if (tagName === 'architecture') dot.style.background = 'var(--gold)';
+          else if (tagName === 'thesis') dot.style.background = 'var(--terra)';
+          tagItem.appendChild(dot);
+          tagItem.appendChild(txt(tagName));
+          tagItem.appendChild(el('span', { className: 'nav-count', textContent: String(count) }));
+          tagItem.addEventListener('click', function() {
+            var input = document.querySelector('.search-pill input');
+            if (input) { input.value = 'tag:' + tagName; doSearch('tag:' + tagName); }
+          });
+          sb.appendChild(tagItem);
+        })(sorted[si][0], sorted[si][1]);
+      }
+    }
+
+    // Agents
+    var agentStrip = el('div', { className: 'agent-strip' });
+    agentStrip.appendChild(el('div', { className: 'nav-label', style: { marginTop: '0' }, textContent: 'Agents' }));
+    var agents = [
+      { name: 'cockpit', status: 'on', label: 'active' },
+      { name: 'guardian', status: state.connected ? 'watch' : 'off', label: state.connected ? 'watching' : 'offline' },
+    ];
+    for (var ag = 0; ag < agents.length; ag++) {
+      var agent = agents[ag];
+      var agRow = el('div', { className: 'agent-row' });
+      agRow.appendChild(el('div', { className: 'adot ' + agent.status }));
+      agRow.appendChild(txt(agent.name));
+      agRow.appendChild(el('span', { className: 'astatus', textContent: agent.label }));
+      agentStrip.appendChild(agRow);
+    }
+    sb.appendChild(agentStrip);
+
+    // Guardian
+    var gStrip = el('div', { className: 'guardian-strip' });
+    var gEye = el('div', {
+      className: 'g-eye ' + (state.connected ? state.guardianState : 'offline'),
+      id: 'geye'
+    });
+    gStrip.appendChild(gEye);
+    var gLabel = el('span', { id: 'glabel' });
+    gLabel.textContent = 'guardian \u00b7 ' + (state.connected ? state.guardianState : 'offline');
+    gStrip.appendChild(gLabel);
+    sb.appendChild(gStrip);
+
+    // Settings
+    var settingsBtn = el('div', { className: 'settings-btn' });
+    settingsBtn.appendChild(txt('\u2699 settings'));
+    settingsBtn.addEventListener('click', showSettings);
+    sb.appendChild(settingsBtn);
+  }
+
+  // ===== SEARCH =====
+  function buildSearch() {
+    var pill = document.getElementById('search-pill');
+    clearEl(pill);
+    var input = el('input', { type: 'text', placeholder: 'search memories...' });
+    input.addEventListener('input', debounce(function() { doSearch(input.value); }, 250));
+    pill.appendChild(input);
+    pill.appendChild(el('span', { className: 'skey', textContent: '\u2318K' }));
+  }
+
+  function doSearch(query) {
+    state.searchQuery = query.trim();
+    if (!state.searchQuery) {
+      state.searchMatches.clear();
+      return;
+    }
+    api('/api/memories/search?q=' + encodeURIComponent(state.searchQuery))
+      .then(function(data) {
+        state.searchMatches.clear();
+        var results = Array.isArray(data) ? data : (data.memories || data.results || []);
+        for (var r = 0; r < results.length; r++) {
+          state.searchMatches.add(results[r].id);
+        }
+      })
+      .catch(function() {
+        // Client-side fallback
+        state.searchMatches.clear();
+        var q = state.searchQuery.toLowerCase();
+        var isTagSearch = q.startsWith('tag:');
+        var tagVal = isTagSearch ? q.slice(4) : '';
+        for (var n = 0; n < state.nodes.length; n++) {
+          var node = state.nodes[n];
+          if (isTagSearch) {
+            if (node.tags && node.tags.some(function(t) { return t.toLowerCase().indexOf(tagVal) !== -1; })) {
+              state.searchMatches.add(node.id);
+            }
+          } else {
+            if ((node.content || '').toLowerCase().indexOf(q) !== -1) {
+              state.searchMatches.add(node.id);
+            }
+          }
+        }
+      });
+  }
+
+  // ===== ZOOM BAR =====
+  function buildZoomBar() {
+    var bar = document.getElementById('zoom-bar');
+    clearEl(bar);
+    var zoomIn = el('div', { className: 'zbtn', textContent: '+' });
+    zoomIn.addEventListener('click', function() { state.zoom = Math.min(5, state.zoom * 1.2); });
+    bar.appendChild(zoomIn);
+    var zoomOut = el('div', { className: 'zbtn', textContent: '\u2212' });
+    zoomOut.addEventListener('click', function() { state.zoom = Math.max(0.1, state.zoom * 0.8); });
+    bar.appendChild(zoomOut);
+    var zoomFit = el('div', { className: 'zbtn', textContent: '\u25A3' });
+    zoomFit.addEventListener('click', function() { state.zoom = 1; state.camX = 0; state.camY = 0; });
+    bar.appendChild(zoomFit);
+  }
+
+  // ===== VIEW TOGGLE =====
+  function buildViewToggle() {
+    var toggle = document.getElementById('view-toggle');
+    clearEl(toggle);
+    var names = ['Graph', 'List', 'Feed'];
+    for (var vi = 0; vi < names.length; vi++) {
+      (function(name) {
+        var btn = el('div', { className: 'vbtn' + (name === 'Graph' ? ' active' : ''), textContent: name });
+        btn.addEventListener('click', function() {
+          toggle.querySelectorAll('.vbtn').forEach(function(v) { v.classList.remove('active'); });
+          btn.classList.add('active');
+        });
+        toggle.appendChild(btn);
+      })(names[vi]);
+    }
+  }
+
+  // ===== STATUSBAR =====
+  function renderStatusbar() {
+    var sb = document.getElementById('statusbar');
+    clearEl(sb);
+
+    var items = [
+      { label: 'memories', value: state.memoryCount },
+      { label: 'sessions', value: state.sessionCount },
+      { label: 'strength', value: state.avgStrength.toFixed(2) },
+      { label: 'edges', value: state.edgeCount.toLocaleString() },
+    ];
+    for (var i = 0; i < items.length; i++) {
+      var item = items[i];
+      var si = el('div', { className: 'si' });
+      si.appendChild(txt(item.label + ' '));
+      si.appendChild(el('span', { className: 'sv', textContent: String(item.value) }));
+      sb.appendChild(si);
+    }
+
+    var sg = el('div', { className: 'sg' });
+    var sEye = el('div', {
+      className: 'g-eye ' + (state.connected ? state.guardianState : 'offline'),
+      style: { width: '7px', height: '7px' },
+    });
+    sg.appendChild(sEye);
+    var sText = el('span', { id: 'sgtext' });
+    sText.textContent = 'guardian \u00b7 ' + (state.connected ? state.guardianState + ' \u00b7 watching' : 'offline');
+    sg.appendChild(sText);
+    sb.appendChild(sg);
+  }
+
+  // ===== SETTINGS =====
+  function showSettings() {
+    var overlay = document.getElementById('settings-overlay');
+    overlay.classList.remove('hidden');
+    clearEl(overlay);
+
+    var card = el('div', { className: 'settings-card' });
+    card.appendChild(el('div', { className: 'settings-title', textContent: 'Settings' }));
+    card.appendChild(el('div', { className: 'settings-section', textContent: 'Theme' }));
+
+    var swatches = el('div', { className: 'theme-swatches' });
+    var themes = ['olive', 'ink', 'linen', 'slate', 'void'];
+    for (var ti = 0; ti < themes.length; ti++) {
+      (function(t) {
+        var swatch = el('div', {
+          className: 'theme-swatch swatch-' + t + (state.theme === t ? ' active' : ''),
+        });
+        var label = el('div', { className: 'theme-swatch-label', textContent: t, style: { color: 'var(--t3)' } });
+        swatch.appendChild(label);
+        swatch.addEventListener('click', function() {
+          state.theme = t;
+          localStorage.setItem('ff-theme', t);
+          document.documentElement.setAttribute('data-theme', t);
+          showSettings();
+        });
+        swatches.appendChild(swatch);
+      })(themes[ti]);
+    }
+    card.appendChild(swatches);
+
+    card.appendChild(el('div', { className: 'settings-section', textContent: 'Connection' }));
+    var tokenInfo = el('div', { style: { fontSize: '11px', color: 'var(--t2)' } });
+    tokenInfo.textContent = 'Token: ' + (state.token ? state.token.slice(0, 8) + '...' : 'none');
+    card.appendChild(tokenInfo);
+
+    var logoutBtn = el('button', {
+      className: 'settings-close-btn',
+      textContent: 'Clear token',
+      style: { marginTop: '8px' },
+    });
+    logoutBtn.addEventListener('click', function() {
+      localStorage.removeItem(TOKEN_KEY);
+      state.token = '';
+      overlay.classList.add('hidden');
+      showAuth();
+    });
+    card.appendChild(logoutBtn);
+
+    var closeDiv = el('div', { className: 'settings-close' });
+    var closeBtn = el('button', { className: 'settings-close-btn', textContent: 'Close' });
+    closeBtn.addEventListener('click', function() { overlay.classList.add('hidden'); });
+    closeDiv.appendChild(closeBtn);
+    card.appendChild(closeDiv);
+
+    overlay.appendChild(card);
+    overlay.addEventListener('click', function(e) {
+      if (e.target === overlay) overlay.classList.add('hidden');
+    });
+  }
+
+  // ===== KEYBOARD SHORTCUTS =====
+  document.addEventListener('keydown', function(e) {
+    if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+      e.preventDefault();
+      var input = document.querySelector('.search-pill input');
+      if (input) input.focus();
+    }
+    if ((e.metaKey || e.ctrlKey) && e.key === ',') {
+      e.preventDefault();
+      var overlay = document.getElementById('settings-overlay');
+      if (overlay.classList.contains('hidden')) showSettings();
+      else overlay.classList.add('hidden');
+    }
+    if (e.key === 'Escape') {
+      hideCtxMenu();
+      document.getElementById('settings-overlay').classList.add('hidden');
+      var searchInput = document.querySelector('.search-pill input');
+      if (document.activeElement === searchInput) {
+        searchInput.value = '';
+        searchInput.blur();
+        state.searchQuery = '';
+        state.searchMatches.clear();
+      }
+    }
+  });
+
+  document.addEventListener('click', function(e) {
+    var menu = document.getElementById('ctx-menu');
+    if (!menu.contains(e.target)) hideCtxMenu();
+  });
+
+  // ===== SSE =====
+  function connectSSE() {
+    if (state.eventSource) {
+      state.eventSource.close();
+    }
+    var url = API_BASE + '/api/events';
+    var es = new EventSource(url);
+    state.eventSource = es;
+
+    es.onopen = function() {
+      state.connected = true;
+      document.getElementById('disconnected-banner').classList.add('hidden');
+      renderSidebar();
+      renderStatusbar();
+    };
+
+    es.onerror = function() {
+      state.connected = false;
+      document.getElementById('disconnected-banner').classList.remove('hidden');
+      renderSidebar();
+      renderStatusbar();
+      es.close();
+      state.eventSource = null;
+      clearTimeout(state.reconnectTimer);
+      state.reconnectTimer = setTimeout(connectSSE, 3000);
+    };
+
+    es.addEventListener('memory:created', function(e) {
+      try {
+        var mem = JSON.parse(e.data);
+        addNodeFromMemory(mem);
+      } catch(err) { /* ignore */ }
+    });
+
+    es.addEventListener('memory:updated', function(e) {
+      try {
+        var mem = JSON.parse(e.data);
+        var existing = state.nodeMap.get(mem.id);
+        if (existing) Object.assign(existing, mem);
+        if (state.selectedId === mem.id) {
+          state.selectedMemory = existing;
+          renderInspector();
+        }
+      } catch(err) { /* ignore */ }
+    });
+
+    es.addEventListener('memory:deleted', function(e) {
+      try {
+        var data = JSON.parse(e.data);
+        removeNode(data.id || data);
+      } catch(err) { /* ignore */ }
+    });
+
+    es.addEventListener('edge:created', function(e) {
+      try {
+        var edge = JSON.parse(e.data);
+        state.edges.push(edge);
+        state.edgeCount = state.edges.length;
+        renderStatusbar();
+      } catch(err) { /* ignore */ }
+    });
+
+    es.addEventListener('edge:deleted', function(e) {
+      try {
+        var data = JSON.parse(e.data);
+        var id = data.id || data;
+        state.edges = state.edges.filter(function(edge) { return edge.id !== id; });
+        state.edgeCount = state.edges.length;
+        renderStatusbar();
+      } catch(err) { /* ignore */ }
+    });
+
+    es.addEventListener('memory:promoted', function(e) {
+      try {
+        var mem = JSON.parse(e.data);
+        var existing = state.nodeMap.get(mem.id);
+        if (existing) {
+          existing.memoryType = 'artifact';
+          Object.assign(existing, mem);
+        }
+        loadArtifacts();
+      } catch(err) { /* ignore */ }
+    });
+
+    es.addEventListener('guardian:update', function(e) {
+      try {
+        var data = JSON.parse(e.data);
+        if (data.value !== undefined) state.guardianTemp = data.value;
+        if (data.state) state.guardianState = data.state;
+        if (data.signals) state.guardianSignals = data.signals;
+        renderSidebar();
+        renderStatusbar();
+      } catch(err) { /* ignore */ }
+    });
+
+    es.onmessage = function() {};
+  }
+
+  function addNodeFromMemory(mem) {
+    if (state.nodeMap.has(mem.id)) return;
+    var w = graphCanvas.width / devicePixelRatio;
+    var h = graphCanvas.height / devicePixelRatio;
+    mem.x = (Math.random() - 0.5) * w * 0.4;
+    mem.y = (Math.random() - 0.5) * h * 0.4;
+    mem.vx = 0;
+    mem.vy = 0;
+    state.nodes.push(mem);
+    state.nodeMap.set(mem.id, mem);
+    state.memoryCount = state.nodes.length;
+    renderSidebar();
+    renderStatusbar();
+  }
+
+  function removeNode(id) {
+    state.nodes = state.nodes.filter(function(n) { return n.id !== id; });
+    state.nodeMap.delete(id);
+    state.edges = state.edges.filter(function(e) { return e.sourceId !== id && e.targetId !== id; });
+    if (state.selectedId === id) selectNode(null);
+    state.memoryCount = state.nodes.length;
+    state.edgeCount = state.edges.length;
+    renderSidebar();
+    renderStatusbar();
+  }
+
+  // ===== DATA LOADING =====
+  function loadGraph() {
+    return api('/api/graph/full?limit=500').then(function(data) {
+      var nodes = data.nodes || [];
+      var edges = data.edges || [];
+      state.nodes = nodes;
+      state.edges = edges;
+      state.nodeMap.clear();
+      for (var i = 0; i < nodes.length; i++) {
+        state.nodeMap.set(nodes[i].id, nodes[i]);
+      }
+      state.memoryCount = data.total || nodes.length;
+      state.edgeCount = edges.length;
+
+      if (nodes.length > 0) {
+        var sum = 0;
+        for (var j = 0; j < nodes.length; j++) sum += (nodes[j].strength || 0);
+        state.avgStrength = sum / nodes.length;
+      }
+
+      initNodePositions();
+      renderSidebar();
+      renderStatusbar();
+    }).catch(function(err) {
+      console.error('Failed to load graph:', err);
+    });
+  }
+
+  function loadStatus() {
+    return api('/api/status').then(function(data) {
+      state.memoryCount = data.memoryCount || state.memoryCount;
+      state.sessionCount = data.activeSessions || 0;
+      renderSidebar();
+      renderStatusbar();
+    }).catch(function() {});
+  }
+
+  function loadGuardian() {
+    return api('/api/guardian/temperature').then(function(data) {
+      if (data.value !== undefined) state.guardianTemp = data.value;
+      if (data.state) state.guardianState = data.state;
+      if (data.signals) state.guardianSignals = data.signals;
+      renderSidebar();
+      renderStatusbar();
+    }).catch(function() {});
+  }
+
+  function loadArtifacts() {
+    return api('/api/artifacts').then(function(data) {
+      state.artifacts = Array.isArray(data) ? data : (data.artifacts || []);
+      renderInspector();
+    }).catch(function() {});
+  }
+
+  // ===== MAIN LOOP =====
+  function mainLoop(time) {
+    drawThermal(time);
+    simulateForces();
+    drawGraph();
+    requestAnimationFrame(mainLoop);
+  }
+
+  // ===== BOOT =====
+  function boot() {
+    document.documentElement.setAttribute('data-theme', state.theme);
+
+    initThermal();
+    resizeGraph();
+    window.addEventListener('resize', resizeGraph);
+
+    buildSearch();
+    buildCtxMenu();
+    buildZoomBar();
+    buildViewToggle();
+    renderSidebar();
+    renderInspector();
+    renderStatusbar();
+
+    Promise.all([loadGraph(), loadStatus(), loadGuardian(), loadArtifacts()]).then(function() {
+      connectSSE();
+    });
+
+    requestAnimationFrame(mainLoop);
+  }
+
+  // ===== INIT =====
+  if (!state.token) {
+    showAuth();
+    document.documentElement.setAttribute('data-theme', state.theme);
+    initThermal();
+    resizeGraph();
+    window.addEventListener('resize', resizeGraph);
+    buildSearch();
+    buildCtxMenu();
+    buildZoomBar();
+    buildViewToggle();
+    renderSidebar();
+    renderInspector();
+    renderStatusbar();
+    requestAnimationFrame(mainLoop);
+  } else {
+    boot();
+  }
+
+})();
+</script>
+</body>
+</html>
