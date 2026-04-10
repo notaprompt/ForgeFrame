@@ -154,7 +154,32 @@ Nodes are not flat — they are hierarchical. "ForgeFrame" as a node contains me
 Level-of-detail rendering: at each zoom level, compute which clusters should expand based on viewport bounds and zoom factor. The WebGL renderer handles this with instanced quads that appear/disappear based on camera distance. Edge bundling collapses internal edges when a cluster is contracted.
 
 ### Sidebar (glass panel, collapsible)
-- **Brand**: "forge" — placeholder weight-200 sans with wide tracking until custom wordmark is designed. Wordmark brief: 70s retro inline/double-line DNA, IBM-logo confidence, reads at 12px and 200px, works across all themes. Parallel track, not a blocker.
+- **Brand**: ForgeFrame wordmark (see Wordmark section below)
+
+## Wordmark
+
+**Concept locked:** Tracked FORGE with perspective FRAME floor shadow.
+
+### FORGE (the figure)
+- IBM-style horizontal bars clipped to bold letterforms (Inter 900 or custom typeface)
+- Bars use the palette gradient top-to-bottom: dark earth (`#5a4a35`) → earth (`#6b5940`) → bronze (`#8b7355`) → gold (`#a07d42`) → sage (`#8aab7f`, fading)
+- Implemented via `background: repeating-linear-gradient(to bottom, ...)` with `-webkit-background-clip: text`
+- Bars are separated by transparent gaps — the gaps are the "tracks"
+
+### FRAME (the shadow)
+- Same word weight/tracking as FORGE, positioned at FORGE's baseline
+- CSS 3D perspective projection: `rotateX(65-68deg)` with `scaleX(1.2+)` to expand wider than FORGE
+- Should visibly extend beyond FORGE's edges on both sides — the shadow is larger than the figure
+- Very low opacity (0.04-0.06 on light, 0.07-0.10 on dark), `filter: blur(0.4px)`
+- Dark gray/near-black on light themes, cream on dark themes
+- The metaphor: FORGE is the figure standing in the alley. FRAME is its shadow on the ground — massive, expanding toward the viewer
+
+### Remaining work
+- Custom letterforms (not Inter) — needs the 70s retro bendy quality from the E direction explorations. Curvy and straight, bold and composed. Parallel track to implementation.
+- Fine-tune FRAME shadow width — should span ~1.3-1.5x wider than FORGE at its widest
+- Adjust perspective angle per-theme for readability
+- Test favicon: tracked F monogram with palette gradient as fallback mark
+- Wireframes saved in `.superpowers/brainstorm/` sessions in ForgeFrame repo
 - **Views**: graph, memories, sessions, skills, editor — click to switch main area
 - **Tags**: filterable, colored dots per tag category
 - **Agents**: live agent status from SSE — builder/skeptic/architect with active/watching/idle states, pixel characters from swarm viewer
