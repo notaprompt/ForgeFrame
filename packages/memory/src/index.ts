@@ -28,3 +28,4 @@ export { TRIM_TAGS, CONSTITUTIONAL_TAGS, LORA_ELIGIBLE_TAGS } from './types.js';
 export type { MemoryEdge, EdgeCreateInput, EdgeRelationType, GuardianSignals, GuardianTemperature, ArtifactState, ArtifactStatus, MemoryType } from './types.js';
 export { EDGE_RELATION_TYPES, MEMORY_TYPES, ARTIFACT_STATES } from './types.js';
 export { MEMORY_ORGAN_MANIFEST, createMemoryOrganLifecycle } from './organ.js';
+export { GuardianComputer } from './guardian.js';
