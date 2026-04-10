@@ -403,6 +403,99 @@ Default: all three exist. The system shows what's ready (green dot = engine thin
 - Graph edges 1.5px minimum with earth-brown stroke
 - Tags need sufficient contrast — use filled backgrounds (sage-bg, gold-bg) not just borders
 
+## ForgeFrame Cloud — Sovereign Memory Layer
+
+### Category Position
+Not "memory for agents." **Sovereign cognitive infrastructure.** The thesis from "On Observation and Identity Modeling," productized: *"The question is who holds the memory."* Every competitor answers "we do, trust us." ForgeFrame answers "you do, we make it effortless."
+
+### Tiers
+
+**Local (free, source-available)** — ForgeFrame runs on your machine. SQLite file you own. MCP server over stdio. `npm install @forgeframe/memory`. The E46 chassis — simple, light, nothing wasted.
+
+**Cloud Relay (pro, $10-20/mo)** — `forge cloud enable` spins up an encrypted relay. Local ForgeFrame is still the source of truth. Relay is a proxy at `https://you.forgeframe.cloud/mcp`. Memories encrypted with your key — ForgeFrame can't read them. When your machine is on, relay forwards to localhost. When off, serves from encrypted cache. Obsidian Sync model.
+
+**Team (enterprise, $30-50/seat/mo)** — shared memory namespace across a team's ForgeFrame instances. Each person owns their local graph. Team memories federate — share specific tagged memories, see team graph topology, cross-instance consolidation. The Cap1 play.
+
+**Enterprise (custom)** — on-prem deployment, compliance, audit logging, SSO, dedicated support.
+
+### Licensing
+- `@forgeframe/memory` — BSL (Business Source License). Code visible, free for individuals and sub-threshold companies. Commercial license for enterprises and hosted services. Converts to Apache 2.0 after 3 years. MongoDB play.
+- `@forgeframe/cockpit` — Proprietary. Free to use locally, source not published. The premium experience is the moat.
+- `@forgeframe/cloud` — Proprietary SaaS.
+
+### Transport Upgrade
+ForgeFrame's MCP server currently speaks stdio only. Needs authenticated HTTP/SSE transport so remote agents (Managed Agents, team members, SDKs) can connect:
+- `POST /mcp` — MCP JSON-RPC over HTTP with bearer auth
+- `GET /mcp/sse` — SSE stream for server-to-client notifications
+- API key management in Cockpit settings
+- Rate limiting, audit logging per connected agent
+
+### Cockpit Cloud View (v1 scope)
+New sidebar section + inspector view:
+- **Connections panel** — which agents/sessions are connected (local + remote). Live SSE.
+- **Access log** — what remote agents read/wrote and when. Gold-flash-on-new pattern.
+- **Sovereignty dashboard** — one-glance: "your data is here. N agents connected. 0 unencrypted transmissions." Green/amber/red health.
+- **Share controls** — per-memory or per-tag: local-only / cloud-synced / team-shared. In the node context menu: Open / Edit / Link / Promote / Tag / **Share**.
+
+### What Makes It Go Viral
+The moment: you install ForgeFrame, use Claude Code for a week, open the Cockpit for the first time. You see a graph of your own thinking — nodes you didn't create, edges you didn't draw, patterns you didn't notice. A memory from three weeks ago glowing because it's suddenly relevant. Guardian quietly noting you've been circling a decision for four days. You screenshot it. You tweet it. That's the product. Everything else is infrastructure in service of that moment.
+
+## Critical Gaps (@swe review, 2026-04-10)
+
+### 1. Benchmark Receipts
+No LongMemEval or LoCoMo benchmark results. Graphiti/Zep scored 63.8% on LongMemEval. Mem0 scored 49%. ForgeFrame has zero published numbers. The Chinese labs (HKUDS, MAGMA) publish papers with ablation studies. Run the benchmarks, publish the results. If above Mem0, that's technical credibility. If not, fix before shipping.
+
+**Action:** Run LongMemEval + LoCoMo against ForgeFrame's retrieval. Publish results in README and Show HN post. The Cockpit screenshot gets attention. The benchmark number keeps it.
+
+### 2. SDK Story
+Every competitor has Python + TypeScript SDKs. `pip install mem0ai` and you're in. ForgeFrame is MCP-only — Claude-specific. Developers on GPT-4, Gemini, Llama can't use it. Need thin REST SDKs wrapping the HTTP API:
+
+```python
+from forgeframe import ForgeFrame
+ff = ForgeFrame("https://you.forgeframe.cloud")
+ff.save("sovereignty matters", tags=["principle"])
+results = ff.search("what did I decide about auth?")
+```
+
+```typescript
+import { ForgeFrame } from '@forgeframe/sdk'
+const ff = new ForgeFrame('https://you.forgeframe.cloud')
+await ff.save('sovereignty matters', { tags: ['principle'] })
+const results = await ff.search('what did I decide about auth?')
+```
+
+MCP is the native interface for Claude. REST SDK is the universal interface for everyone else. Without this, ForgeFrame is only addressable by the Claude ecosystem.
+
+### 3. Multi-Graph Query Intelligence (MAGMA insight)
+Current design: one graph with typed edges. MAGMA (UT Dallas, Jan 2026) stores each memory across four orthogonal graphs — semantic, temporal, causal, entity. Query intent selects which graphs to activate, traverses independently, fuses subgraphs.
+
+ForgeFrame doesn't need four separate stores — single `memory_edges` table with `relation_type` already supports this. But retrieval must be **query-intent-aware**:
+- "What did I decide about X?" → prioritize `led-to`, `supersedes` edges (causal)
+- "What was happening when I decided X?" → prioritize temporal edges, `valid_from` windows
+- "What concepts relate to X?" → prioritize `similar`, `implements` edges (semantic)
+- "What contradicts X?" → prioritize `contradicts` edges
+
+Implementation: classify query intent before retrieval (quick LLM call or keyword heuristic), weight edge types in graph traversal accordingly. This is a retrieval-time decision, not a storage change.
+
+### 4. Strange Loop as Headline Positioning
+The recursive self-improvement loop is the real differentiator and it's buried in the spec. Nobody else has a memory system that watches its own session logs, distills patterns, derives new constitutional principles, and feeds them back.
+
+Reposition: **"The only memory system that gets smarter by watching itself think."** That's the headline. That's the Show HN title. Not "sovereign memory for agents" — that's accurate but not magnetic. The Strange Loop is what makes people lean forward.
+
+Implementation already spec'd (self-distillation agent job, auto-correction capture via hooks). Needs to be front-and-center in README, landing page, and Cockpit (visible in the graph as `self-derived` nodes with a distinct visual treatment).
+
+### 5. Migration / Import Story
+If someone has 500 notes in Obsidian, 2000 memories in Mem0, 10k entries in Notion — how do they get into ForgeFrame? Switching cost is the moat's enemy. Make it zero.
+
+**Importers needed (priority order):**
+1. **Obsidian vault** → ForgeFrame — read markdown files, parse frontmatter as tags, backlinks as edges, file modification dates as `valid_from`. The Obsidian replacement story demands this.
+2. **Mem0 export** → ForgeFrame — JSON export format, map scopes to tags, preserve metadata.
+3. **Notion database** → ForgeFrame — CSV/API export, map properties to tags and metadata.
+4. **ChatGPT conversation export** → ForgeFrame — JSON conversations parsed into episodic memories. (User already has 2200 ChatGPT files in Obsidian vault — this is a real use case.)
+5. **Generic markdown folder** → ForgeFrame — catch-all for any knowledge base.
+
+CLI: `forge import obsidian ~/Documents/vault` — scans, previews what it'll create, imports on confirmation. Shows results in Cockpit graph immediately.
+
 ## What This Does NOT Include
 
 - Chat interface — the Cockpit is not a chat window. Claude Code stays in the terminal.
@@ -443,7 +536,29 @@ Three parallel workstreams:
 10. Mobile responsive layout
 11. Tauri shell integration
 
-### WS4: Integration
+### WS4: Cloud + Transport
+1. HTTP/SSE MCP transport with bearer auth
+2. API key management
+3. Cloud relay service (encrypted proxy)
+4. Rate limiting + audit logging
+5. Cockpit Cloud view (connections, access log, sovereignty dashboard, share controls)
+
+### WS5: SDK + Distribution
+1. Python SDK (`forgeframe` package)
+2. TypeScript SDK (`@forgeframe/sdk` package)
+3. Obsidian vault importer (`forge import obsidian`)
+4. Mem0 export importer
+5. ChatGPT conversation importer
+6. Generic markdown folder importer
+
+### WS6: Benchmarks + Positioning
+1. Run LongMemEval against ForgeFrame retrieval
+2. Run LoCoMo benchmark
+3. Publish results in README
+4. Strange Loop positioning in README + landing page
+5. Self-derived nodes visual treatment in Cockpit graph
+
+### WS7: Integration
 1. Wire frontend to live API
 2. SSE event handling (new memories, edge changes, Guardian temp updates)
 3. Graph populates from real ForgeFrame data
