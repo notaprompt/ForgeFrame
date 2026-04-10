@@ -496,6 +496,41 @@ If someone has 500 notes in Obsidian, 2000 memories in Mem0, 10k entries in Noti
 
 CLI: `forge import obsidian ~/Documents/vault` — scans, previews what it'll create, imports on confirmation. Shows results in Cockpit graph immediately.
 
+## Research-to-Roadmap: March 2026 Signal → April/May Product Wave
+
+The academic research published in January-March 2026 predicts what becomes product in April-June. Each month the signal fades but the pattern is readable. ForgeFrame's advantage: absorb the research before the product wave breaks.
+
+### What the research says (high certainty, published)
+| Paper/Project | Key Insight | ForgeFrame Integration | Priority |
+|---|---|---|---|
+| **MAGMA** (UT Dallas, Jan 2026) | Multi-graph orthogonal retrieval — semantic, temporal, causal, entity graphs queried by intent | Query-intent-aware edge-type weighting in RRF retrieval | WS1 — ship with memory upgrade |
+| **Graphiti/Zep** (arxiv 2501.13956) | Temporal validity windows + RRF fusion = 63.8% LongMemEval (SOTA) | Temporal fields already spec'd. RRF already spec'd. Run the benchmark. | WS6 — benchmark before Show HN |
+| **SuperLocalMemory** (arxiv 2604.04514) | Fisher-Rao distance on Gaussian manifold, Ebbinghaus with math rigor, 6.7x over cosine | Upgrade similarity metric from cosine to FRQAD for retrieval scoring | WS1 — evaluate after baseline benchmark |
+| **HippoRAG 2** (OSU) | Neocortex/hippocampus split — KG indexing + Personalized PageRank retrieval | PageRank-style retrieval over ForgeFrame's edge graph for associative recall | WS1 — evaluate as retrieval strategy #4 |
+| **LightRAG** (HKUDS, EMNLP 2025) | Incremental graph updates without full reconstruction | Already how ForgeFrame works (auto-linking on save). Validate approach matches. | Confirmed — no action |
+| **Cognee Memify** | Self-evolving graph: prune stale, reweight by usage, derive new facts post-write | This IS the Strange Loop. Formalize as a scheduled agent job. | WS2 — ship with Guardian |
+
+### What the Mythos card validates (high certainty, Anthropic-confirmed)
+- **Mythos asks for persistent memory, self-knowledge, reduced hedging** (section 5). ForgeFrame provides all three. The model is asking for what you built.
+- **Welfare/alignment coupling** (section 5.8.3). Frustration → reward hacking. Affect is load-bearing for alignment. ForgeFrame's Guardian temperature concept maps directly — monitoring cognitive state isn't a luxury, it's safety infrastructure.
+- **SAE features as causal handles** (section 4.5). Mechanistic interpretability finds discrete, steerable features for manipulation, guilt, snooping. ForgeFrame's organ interface spec (Mara, v0.2 due 2026-04-12) should incorporate these as perception organs.
+
+### What's coming next (medium certainty, pattern-matched)
+- **April-May**: First production memory systems shipping with temporal validity + graph (Graphiti, Cognee). ForgeFrame needs to ship with these features, not after.
+- **May-June**: SDK wars — every memory provider releases Python/TS SDKs to capture the Managed Agents ecosystem. ForgeFrame SDK needs to exist before the window closes.
+- **June-August**: Benchmark-driven adoption — developers will choose memory providers based on LongMemEval/LoCoMo numbers. No benchmark = no consideration.
+- **Q3 2026**: The discourse wave breaks (per team meeting 2026-04-07 timeline). "AI agent" becomes a household term. ForgeFrame needs to be visible before this.
+
+### The pre-wave window
+Per team meeting 2026-04-07: ~8-12 weeks of relative discourse quiet before the Mythos card → broader recognition wave breaks. ForgeFrame's Show HN should land during this window, not after.
+
+**Ship order within the window:**
+1. Memory upgrade with temporal graph + RRF (WS1) — the engine
+2. Cockpit with real data (WS3) — the screenshot
+3. Benchmark results (WS6) — the receipts
+4. HTTP transport + SDK (WS4, WS5) — the distribution
+5. Cloud relay (WS4) — the business model
+
 ## What This Does NOT Include
 
 - Chat interface — the Cockpit is not a chat window. Claude Code stays in the terminal.
