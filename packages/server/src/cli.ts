@@ -101,6 +101,29 @@ async function main() {
       break;
     }
 
+    case 'link': {
+      const { MemoryStore } = await import('@forgeframe/memory');
+      const config = (await import('./config.js')).loadConfig();
+      const store = new MemoryStore({ dbPath: config.dbPath });
+      const all = store.getRecent(5000);
+      const total = all.length;
+      let totalEdges = 0;
+      process.stderr.write(`Auto-linking ${total} memories...\n`);
+
+      for (let i = 0; i < all.length; i++) {
+        const created = store.autoLink(all[i].id, 5);
+        totalEdges += created;
+        if ((i + 1) % 50 === 0 || i === all.length - 1) {
+          process.stderr.write(`  ${i + 1}/${total} — ${totalEdges} edges created\n`);
+        }
+      }
+
+      process.stderr.write(`\nDone. ${totalEdges} edges created across ${total} memories.\n`);
+      process.stderr.write(`Total edges in graph: ${store.edgeCount()}\n`);
+      store.close();
+      break;
+    }
+
     case 'token': {
       const sub = args[1];
       if (sub === 'generate' || sub === 'new') {
@@ -148,6 +171,7 @@ async function main() {
         '  forgeframe stop                Stop daemon',
         '  forgeframe status              Show daemon status',
         '  forgeframe serve [--port N]    Run in foreground',
+        '  forgeframe link                Auto-link all memories (create edges)',
         '  forgeframe token               Show token (or generate if none)',
         '  forgeframe token generate      Generate a new API token',
         '  forgeframe token show          Show current token',
