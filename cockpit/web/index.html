@@ -155,48 +155,44 @@
   .sidebar { padding: 20px 12px; display: flex; flex-direction: column; grid-row: 1/2; overflow-y: auto; }
 
   .brand {
-    padding: 0 8px; margin-bottom: 28px; line-height: 1;
+    padding: 4px 8px; margin-bottom: 24px; line-height: 1;
+    position: relative;
   }
   .brand-forge {
-    font-weight: 800; font-size: 22px;
-    letter-spacing: 6px; text-transform: uppercase;
+    font-weight: 900; font-size: 28px;
+    letter-spacing: 8px; text-transform: uppercase;
     background: repeating-linear-gradient(
       to bottom,
-      #5a4a35 0px, #5a4a35 3px,
-      transparent 3px, transparent 5px,
-      #6b5940 5px, #6b5940 8px,
-      transparent 8px, transparent 10px,
-      #8b7355 10px, #8b7355 13px,
-      transparent 13px, transparent 15px,
-      #a07d42 15px, #a07d42 18px,
-      transparent 18px, transparent 20px,
-      #8aab7f 20px, #8aab7f 23px
+      #5a4a35 0px, #5a4a35 3.5px,
+      transparent 3.5px, transparent 5.5px,
+      #6b5940 5.5px, #6b5940 9px,
+      transparent 9px, transparent 11px,
+      #8b7355 11px, #8b7355 14.5px,
+      transparent 14.5px, transparent 16.5px,
+      #a07d42 16.5px, #a07d42 20px,
+      transparent 20px, transparent 22px,
+      rgba(138,171,127,0.5) 22px, rgba(138,171,127,0.3) 26px
     );
     -webkit-background-clip: text;
     background-clip: text;
     -webkit-text-fill-color: transparent;
     display: block;
+    padding-bottom: 4px;
+    position: relative;
+    z-index: 2;
   }
   .brand-frame {
-    font-weight: 800; font-size: 22px;
-    letter-spacing: 6px; text-transform: uppercase;
-    background: repeating-linear-gradient(
-      to bottom,
-      #5a4a35 0px, #5a4a35 3px,
-      transparent 3px, transparent 5px,
-      #6b5940 5px, #6b5940 8px,
-      transparent 8px, transparent 10px,
-      #8b7355 10px, #8b7355 13px
-    );
-    -webkit-background-clip: text;
-    background-clip: text;
-    -webkit-text-fill-color: transparent;
+    font-weight: 900; font-size: 28px;
+    letter-spacing: 8px; text-transform: uppercase;
+    color: var(--ink);
     display: block;
-    transform: perspective(200px) rotateX(65deg) scaleX(1.3);
+    transform: perspective(120px) rotateX(68deg) scaleX(1.4);
     transform-origin: top center;
-    opacity: 0.05;
-    filter: blur(0.4px);
-    margin-top: -2px;
+    opacity: 0.08;
+    filter: blur(0.5px);
+    margin-top: -6px;
+    position: relative;
+    z-index: 1;
   }
 
   .nav-label {
@@ -1021,7 +1017,7 @@
     var repulsion = 2400;
     var attraction = 0.004;
     var centerGravity = 0.008;
-    var damping = 0.92;
+    var damping = 0.85;
     var time = Date.now() * 0.001;
 
     for (var i = 0; i < nodes.length; i++) {
@@ -1058,10 +1054,13 @@
       if (state.dragNode === nd) continue;
       nd.vx -= nd.x * centerGravity;
       nd.vy -= nd.y * centerGravity;
-      // Subtle continuous drift — each node wanders gently
-      var driftPhase = time * nd.driftSpeed + nd.driftAngle;
-      nd.vx += Math.cos(driftPhase) * 0.08;
-      nd.vy += Math.sin(driftPhase) * 0.08;
+      // Micro-drift — barely perceptible breathing, not constant motion
+      var speed = Math.abs(nd.vx) + Math.abs(nd.vy);
+      if (speed < 0.3) {
+        var driftPhase = time * nd.driftSpeed * 0.3 + nd.driftAngle;
+        nd.vx += Math.cos(driftPhase) * 0.01;
+        nd.vy += Math.sin(driftPhase) * 0.01;
+      }
       nd.vx *= damping;
       nd.vy *= damping;
       nd.x += nd.vx;
