@@ -5,7 +5,7 @@
  */
 
 import { EventEmitter } from 'events';
-import type { Memory } from '@forgeframe/memory';
+import type { Memory, MemoryEdge, GuardianTemperature } from '@forgeframe/memory';
 
 export interface ServerEventMap {
   'memory:created': [memory: Memory];
@@ -13,8 +13,12 @@ export interface ServerEventMap {
   'memory:updated': [memory: Memory];
   'memory:deleted': [id: string];
   'memory:decayed': [count: number];
+  'memory:promoted': [memory: Memory];
   'session:started': [sessionId: string];
   'session:ended': [sessionId: string];
+  'edge:created':   [edge: MemoryEdge];
+  'edge:deleted':   [edgeId: string];
+  'guardian:update': [temp: GuardianTemperature];
 }
 
 export class ServerEvents extends EventEmitter<ServerEventMap> {}

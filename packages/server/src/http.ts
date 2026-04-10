@@ -9,7 +9,8 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { streamSSE } from 'hono/streaming';
 import { serve } from '@hono/node-server';
-import type { MemoryStore } from '@forgeframe/memory';
+import { GuardianComputer } from '@forgeframe/memory';
+import type { GuardianSignals, MemoryEdge, MemoryStore } from '@forgeframe/memory';
 import type { ServerEvents } from './events.js';
 import { bearerAuth } from './auth.js';
 
@@ -22,6 +23,7 @@ export interface HttpServerOptions {
 
 export function startHttpServer({ store, events, port, hostname }: HttpServerOptions) {
   const app = new Hono();
+  const guardian = new GuardianComputer();
 
   const allowedOrigins = [
     `http://localhost:${port}`,
@@ -105,6 +107,96 @@ export function startHttpServer({ store, events, port, hostname }: HttpServerOpt
     });
   });
 
+  // --- Edge endpoints ---
+
+  app.post('/api/memories/:id/edges', async (c) => {
+    const sourceId = c.req.param('id');
+    const body = await c.req.json();
+    try {
+      const edge = store.createEdge({
+        sourceId,
+        targetId: body.targetId,
+        relationType: body.relationType,
+        weight: body.weight,
+        metadata: body.metadata,
+      });
+      events.emit('edge:created', edge);
+      return c.json(edge, 201);
+    } catch (e: any) {
+      return c.json({ error: e.message }, 400);
+    }
+  });
+
+  app.get('/api/memories/:id/edges', (c) => {
+    return c.json(store.getEdges(c.req.param('id')));
+  });
+
+  app.delete('/api/memories/edges/:edgeId', (c) => {
+    const edgeId = c.req.param('edgeId');
+    const deleted = store.deleteEdge(edgeId);
+    if (deleted) events.emit('edge:deleted', edgeId);
+    return deleted ? c.json({ ok: true }) : c.json({ error: 'not found' }, 404);
+  });
+
+  // --- Graph traversal ---
+
+  app.get('/api/memories/:id/graph', (c) => {
+    const hops = parseInt(c.req.query('hops') ?? '2', 10);
+    const subgraph = store.getSubgraph(c.req.param('id'), hops);
+    return c.json({ nodes: subgraph.nodes.map(sanitize), edges: subgraph.edges });
+  });
+
+  app.get('/api/memories/:id/history', (c) => {
+    return c.json(store.getSupersessionChain(c.req.param('id')).map(sanitize));
+  });
+
+  // --- Artifact endpoints ---
+
+  app.post('/api/memories/:id/promote', (c) => {
+    const promoted = store.promote(c.req.param('id'));
+    if (!promoted) return c.json({ error: 'not found' }, 404);
+    events.emit('memory:promoted', promoted);
+    return c.json(sanitize(promoted));
+  });
+
+  app.get('/api/artifacts', (c) => {
+    return c.json(store.getArtifactMemories().map(sanitize));
+  });
+
+  // --- Guardian ---
+
+  app.get('/api/guardian/temperature', (c) => {
+    const totalMemories = store.count();
+    const signals: GuardianSignals = {
+      revisitWithoutAction: 0,
+      timeSinceLastArtifactExit: Date.now() - (store.lastShippedAt() ?? Date.now()),
+      contradictionDensity: totalMemories > 0 ? store.contradictionCount() / totalMemories : 0,
+      orphanRatio: totalMemories > 0 ? store.orphanCount() / totalMemories : 0,
+      decayVelocity: store.recentDecayCount(24 * 60 * 60 * 1000),
+      recursionDepth: 0,
+    };
+    const temp = guardian.compute(signals);
+    return c.json(temp);
+  });
+
+  // --- Full graph for Cockpit ---
+
+  app.get('/api/graph/full', (c) => {
+    const limit = parseInt(c.req.query('limit') ?? '500', 10);
+    const memories = store.getRecent(limit);
+    const allEdges: MemoryEdge[] = [];
+    const edgeIds = new Set<string>();
+    for (const mem of memories) {
+      for (const edge of store.getEdges(mem.id)) {
+        if (!edgeIds.has(edge.id)) {
+          edgeIds.add(edge.id);
+          allEdges.push(edge);
+        }
+      }
+    }
+    return c.json({ nodes: memories.map(sanitize), edges: allEdges, total: store.count() });
+  });
+
   // --- SSE live feed ---
 
   app.get('/api/events', (c) => {
@@ -148,6 +240,34 @@ export function startHttpServer({ store, events, port, hostname }: HttpServerOpt
         stream.writeSSE({
           event: 'session:ended',
           data: JSON.stringify({ sessionId }),
+        });
+      });
+
+      on('edge:created', (edge) => {
+        stream.writeSSE({
+          event: 'edge:created',
+          data: JSON.stringify(edge),
+        });
+      });
+
+      on('edge:deleted', (edgeId) => {
+        stream.writeSSE({
+          event: 'edge:deleted',
+          data: JSON.stringify({ edgeId }),
+        });
+      });
+
+      on('memory:promoted', (memory) => {
+        stream.writeSSE({
+          event: 'memory:promoted',
+          data: JSON.stringify(sanitize(memory)),
+        });
+      });
+
+      on('guardian:update', (temp) => {
+        stream.writeSSE({
+          event: 'guardian:update',
+          data: JSON.stringify(temp),
         });
       });
 
