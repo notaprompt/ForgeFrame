@@ -531,6 +531,50 @@ Per team meeting 2026-04-07: ~8-12 weeks of relative discourse quiet before the 
 4. HTTP transport + SDK (WS4, WS5) — the distribution
 5. Cloud relay (WS4) — the business model
 
+## Blindspot Review (cold read, 2026-04-10)
+
+### 1. Testing Strategy
+No tests mentioned anywhere. Memory layer upgrade is load-bearing infrastructure. Minimum required:
+- Unit tests for edge CRUD (create, query, delete, unique constraint)
+- Integration tests for RRF retrieval (verify fusion produces better results than any single strategy)
+- Regression suite for auto-linking (verify threshold produces reasonable edges on real data)
+- Supersession chain integrity tests (old version preserved, new version linked, provenance unbroken)
+- Guardian temperature computation tests (known signal inputs → expected temperature output)
+- Run before every release. Add to CI.
+
+### 2. Build Tooling Decision
+Spec says "no framework, no build step" but scope includes Tauri v2 + custom WebGL2 + markdown editor + five themes + semantic zoom + mobile responsive. That's significant complexity for vanilla JS.
+
+**Decision needed:** either (a) accept a single build step (esbuild, zero config) to get TypeScript + imports without a framework, or (b) commit to single-file / hand-rolled module system and accept the ergonomic cost. Recommend option (a) — esbuild adds no framework overhead but gives TypeScript safety on a complex frontend.
+
+### 3. Sidebar Structural Break (merge artifact)
+Lines 156-189 of this spec — the Wordmark section interrupts the Sidebar spec. Sidebar lists (Views, Tags, Agents, Guardian) appear after the Wordmark's "Remaining work" with no heading. Fix: move Wordmark section after Layout, restore Sidebar bullet points under their heading.
+
+### 4. Error States
+No failure modes defined for the Cockpit. Needed:
+- **Server down**: graph shows last-known state with a "disconnected" banner, Guardian eye turns gray
+- **SSE disconnect**: status bar shows "reconnecting..." with animated indicator, auto-retry with backoff
+- **Search zero results**: empty state with "no memories match" + suggestion to broaden query
+- **Memory save fails**: toast notification with error, retry button, memory stays in editor unsaved
+- **Cloud relay unreachable**: sovereignty dashboard shows amber, connections panel shows "relay offline," local operations continue unaffected
+
+### 5. Auto-Linking Threshold Calibration
+The 0.7 cosine threshold for auto-linking is arbitrary. Too low = noisy graph, too high = sparse graph.
+
+**Action:** Before shipping, run auto-linking against existing 847 memories at thresholds 0.6, 0.7, 0.8, 0.9. Count edges produced at each level. Pick the threshold that produces a readable graph (target: 3-8 edges per node on average). Make it tunable via Guardian sensitivity slider in Cockpit settings. Default should be empirically calibrated, not assumed.
+
+### 6. Guardian Temperature Calibration
+Signals defined but weights and normalization are not. "Weighted sum of normalized signals" needs specifics.
+
+**Action:** Start with equal weights. Run against your own usage data for one week. If temperature is stuck at calm or stuck at trapped, adjust weights. The Guardian sensitivity slider in settings scales the composite — higher sensitivity = lower threshold for "warm" and "trapped." Initial calibration is empirical, not theoretical. Document the weights after calibration, not before.
+
+### 7. Cloud Relay Cache Policy
+"Encrypted cache when your machine is off" is underspecified. Critical questions:
+- **What's cached?** All memories synced to cloud tier, or only recently accessed? Recommend: all cloud-synced memories cached, not just recent. The relay is a full mirror of the shared subset.
+- **Staleness:** Cache has a `last_synced_at` timestamp. If machine has been off >24h, relay serves cached data with a `stale: true` flag in the response. Agent can decide whether to use stale data or wait.
+- **Expiry:** Cache does not expire. If your machine is off for a month, the relay still serves what it had. This is the Obsidian Sync behavior — sync is eventual, but cached data is always available.
+- **Write-through:** When a remote agent writes to the relay while your machine is off, the write is queued. When your machine reconnects, queued writes sync down. Conflict resolution: last-write-wins with supersession (the new write creates a superseding memory, old version preserved).
+
 ## What This Does NOT Include
 
 - Chat interface — the Cockpit is not a chat window. Claude Code stays in the terminal.
