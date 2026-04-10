@@ -31,6 +31,9 @@ export const CONSTITUTIONAL_TAGS: readonly TrimTag[] = ['principle', 'voice'] as
 /** Tags eligible for memory transformation (LoRA fine-tuning). Classification ceiling. */
 export const LORA_ELIGIBLE_TAGS: readonly TrimTag[] = ['principle', 'voice', 'pattern', 'skill'] as const;
 
+export const MEMORY_TYPES = ['semantic', 'episodic', 'principle', 'artifact'] as const;
+export type MemoryType = typeof MEMORY_TYPES[number];
+
 export interface Memory {
   id: string;
   content: string;
@@ -45,6 +48,11 @@ export interface Memory {
   tags: string[];
   associations: string[];
   metadata: Record<string, unknown>;
+  validFrom?: number;
+  supersededBy?: string;
+  supersededAt?: number;
+  memoryType: MemoryType;
+  readiness: number;
 }
 
 export interface MemoryCreateInput {
@@ -142,4 +150,61 @@ export interface DistilledArtifactInput {
   refined?: string;
   organChain?: Array<{ organId: string; version: string; durationMs: number }>;
   tags?: string[];
+}
+
+// --- Edge types ---
+
+export const EDGE_RELATION_TYPES = [
+  'led-to', 'contradicts', 'supersedes', 'implements',
+  'similar', 'derived-from', 'related',
+] as const;
+export type EdgeRelationType = typeof EDGE_RELATION_TYPES[number];
+
+export interface MemoryEdge {
+  id: string;
+  sourceId: string;
+  targetId: string;
+  relationType: EdgeRelationType;
+  weight: number;
+  createdAt: number;
+  metadata: Record<string, unknown>;
+}
+
+export interface EdgeCreateInput {
+  sourceId: string;
+  targetId: string;
+  relationType: EdgeRelationType;
+  weight?: number;
+  metadata?: Record<string, unknown>;
+}
+
+// --- Guardian types ---
+
+export interface GuardianSignals {
+  revisitWithoutAction: number;
+  timeSinceLastArtifactExit: number;
+  contradictionDensity: number;
+  orphanRatio: number;
+  decayVelocity: number;
+  recursionDepth: number;
+}
+
+export interface GuardianTemperature {
+  value: number;
+  state: 'calm' | 'warm' | 'trapped';
+  signals: GuardianSignals;
+  computedAt: number;
+}
+
+// --- Artifact types ---
+
+export const ARTIFACT_STATES = ['draft', 'ready', 'shipped', 'trapped'] as const;
+export type ArtifactState = typeof ARTIFACT_STATES[number];
+
+export interface ArtifactStatus {
+  memoryId: string;
+  state: ArtifactState;
+  readiness: number;
+  promotedAt: number;
+  shippedAt?: number;
 }
