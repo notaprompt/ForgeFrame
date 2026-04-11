@@ -1013,19 +1013,35 @@
     if (!state.simRunning) return;
     var nodes = state.nodes;
     var edges = state.edges;
-    var repulsion = 2400;
-    var attraction = 0.004;
-    var centerGravity = 0.008;
-    var damping = 0.85;
-    var time = Date.now() * 0.001;
+    var nodeCount = nodes.length || 1;
+    var edgeCount = edges.length || 1;
 
+    // Scale forces to graph density — dense graphs need weaker attraction
+    var repulsion = 3000;
+    var attraction = Math.min(0.003, 0.5 / edgeCount); // weaker with more edges
+    var idealDist = Math.max(80, Math.sqrt(800 * 600 / nodeCount) * 1.2);
+    var centerGravity = 0.003;
+    var damping = 0.78;
+    var maxVelocity = 8;
+
+    // Cooling: simulation slows over time, stops when settled
+    if (!state.simTick) state.simTick = 0;
+    state.simTick++;
+    var alpha = Math.max(0.02, 1.0 - state.simTick * 0.002); // cools to 0.02 over ~500 frames
+    if (alpha <= 0.02) {
+      // Settled — only run every 4th frame for micro-drift
+      if (state.simTick % 4 !== 0) return;
+    }
+
+    // Repulsion (all pairs) — scaled by alpha
     for (var i = 0; i < nodes.length; i++) {
       for (var j = i + 1; j < nodes.length; j++) {
         var a = nodes[i], b = nodes[j];
         var dx = b.x - a.x;
         var dy = b.y - a.y;
         var dist = Math.sqrt(dx * dx + dy * dy) || 1;
-        var force = repulsion / (dist * dist);
+        if (dist > 600) continue; // skip distant pairs for perf
+        var force = (repulsion * alpha) / (dist * dist);
         var fx = (dx / dist) * force;
         var fy = (dy / dist) * force;
         a.vx -= fx; a.vy -= fy;
@@ -1033,6 +1049,7 @@
       }
     }
 
+    // Attraction (edges) — gentle spring toward ideal distance
     for (var e = 0; e < edges.length; e++) {
       var edge = edges[e];
       var ea = state.nodeMap.get(edge.sourceId);
@@ -1041,27 +1058,24 @@
       var edx = eb.x - ea.x;
       var edy = eb.y - ea.y;
       var edist = Math.sqrt(edx * edx + edy * edy) || 1;
-      var eforce = (edist - 100) * attraction;
+      var eforce = (edist - idealDist) * attraction * alpha;
       var efx = (edx / edist) * eforce;
       var efy = (edy / edist) * eforce;
       ea.vx += efx; ea.vy += efy;
       eb.vx -= efx; eb.vy -= efy;
     }
 
+    // Apply: center gravity, damping, velocity cap
     for (var n = 0; n < nodes.length; n++) {
       var nd = nodes[n];
       if (state.dragNode === nd) continue;
-      nd.vx -= nd.x * centerGravity;
-      nd.vy -= nd.y * centerGravity;
-      // Micro-drift — barely perceptible breathing, not constant motion
-      var speed = Math.abs(nd.vx) + Math.abs(nd.vy);
-      if (speed < 0.3) {
-        var driftPhase = time * nd.driftSpeed * 0.3 + nd.driftAngle;
-        nd.vx += Math.cos(driftPhase) * 0.01;
-        nd.vy += Math.sin(driftPhase) * 0.01;
-      }
+      nd.vx -= nd.x * centerGravity * alpha;
+      nd.vy -= nd.y * centerGravity * alpha;
       nd.vx *= damping;
       nd.vy *= damping;
+      // Cap velocity
+      var spd = Math.sqrt(nd.vx * nd.vx + nd.vy * nd.vy);
+      if (spd > maxVelocity) { nd.vx *= maxVelocity / spd; nd.vy *= maxVelocity / spd; }
       nd.x += nd.vx;
       nd.y += nd.vy;
     }
@@ -1229,6 +1243,7 @@
   });
 
   window.addEventListener('mouseup', function() {
+    if (state.dragNode) state.simTick = Math.max(0, state.simTick - 100); // mild reheat on drop
     state.dragNode = null;
     state.isPanning = false;
     graphCanvas.classList.remove('dragging');
@@ -2108,6 +2123,7 @@
         state.avgStrength = sum / nodes.length;
       }
 
+      state.simTick = 0; // reheat simulation
       initNodePositions();
       renderSidebar();
       renderStatusbar();
