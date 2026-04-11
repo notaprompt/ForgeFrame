@@ -155,43 +155,39 @@
   .sidebar { padding: 20px 12px; display: flex; flex-direction: column; grid-row: 1/2; overflow-y: auto; }
 
   .brand {
-    padding: 0 8px 36px; margin-top: 4px; margin-bottom: 12px; line-height: 1.3;
+    padding: 0 0 28px; margin: 8px 8px 12px; line-height: 1;
     position: relative; overflow: visible;
   }
   .brand-forge {
-    font-weight: 900; font-size: 24px;
-    letter-spacing: 7px; text-transform: uppercase;
-    background: repeating-linear-gradient(
+    font-weight: 900; font-size: 22px;
+    letter-spacing: 6px; text-transform: uppercase;
+    display: inline-block;
+    position: relative;
+    z-index: 2;
+    color: transparent;
+    background-image: repeating-linear-gradient(
       to bottom,
-      #5a4a35 0%, #5a4a35 14%,
-      transparent 14%, transparent 20%,
-      #6b5940 20%, #6b5940 34%,
-      transparent 34%, transparent 40%,
-      #8b7355 40%, #8b7355 54%,
-      transparent 54%, transparent 60%,
-      #a07d42 60%, #a07d42 74%,
-      transparent 74%, transparent 80%,
-      rgba(138,171,127,0.5) 80%, rgba(138,171,127,0.2) 100%
+      #5a4a35, #5a4a35 3px,
+      transparent 3px, transparent 5px
     );
     -webkit-background-clip: text;
     background-clip: text;
-    -webkit-text-fill-color: transparent;
-    display: block;
-    position: relative;
-    z-index: 2;
+    background-size: 100% 100%;
+    padding: 2px 0 4px;
   }
   .brand-frame {
-    font-weight: 900; font-size: 24px;
-    letter-spacing: 12px; text-transform: uppercase;
-    color: #3d3428;
+    font-weight: 900; font-size: 22px;
+    letter-spacing: 10px; text-transform: uppercase;
+    color: #2a2218;
     display: block;
-    transform: perspective(80px) rotateX(58deg) scaleX(1.6);
+    transform: perspective(60px) rotateX(52deg) scaleX(1.5) scaleY(0.7);
     transform-origin: top center;
-    opacity: 0.2;
-    filter: blur(0.4px);
-    margin-top: 0px;
+    opacity: 0.3;
+    filter: blur(0.2px);
+    margin-top: 2px;
     position: relative;
     z-index: 1;
+    text-align: center;
   }
 
   .nav-label {
