@@ -124,6 +124,25 @@ async function main() {
       break;
     }
 
+    case 'catalog': {
+      const { catalogAll } = await import('./catalog.js');
+      const { MemoryStore } = await import('@forgeframe/memory');
+      const config = (await import('./config.js')).loadConfig();
+      const store = new MemoryStore({ dbPath: config.dbPath });
+
+      process.stderr.write('Cataloging memories via Ollama...\n');
+
+      const result = await catalogAll(store, (done, total, _id) => {
+        if (done % 10 === 0 || done === total) {
+          process.stderr.write(`  ${done}/${total}\n`);
+        }
+      });
+
+      process.stderr.write(`\nDone. ${result.cataloged} cataloged, ${result.skipped} skipped, ${result.failed} failed.\n`);
+      store.close();
+      break;
+    }
+
     case 'token': {
       const sub = args[1];
       if (sub === 'generate' || sub === 'new') {
@@ -172,6 +191,7 @@ async function main() {
         '  forgeframe status              Show daemon status',
         '  forgeframe serve [--port N]    Run in foreground',
         '  forgeframe link                Auto-link all memories (create edges)',
+        '  forgeframe catalog             Enrich memories with titles/insights via Ollama',
         '  forgeframe token               Show token (or generate if none)',
         '  forgeframe token generate      Generate a new API token',
         '  forgeframe token show          Show current token',

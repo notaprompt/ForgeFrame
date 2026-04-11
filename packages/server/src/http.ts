@@ -180,6 +180,36 @@ export function startHttpServer({ store, events, port, hostname }: HttpServerOpt
     return c.json(temp);
   });
 
+  // --- Catalog endpoint (triggers background enrichment) ---
+
+  app.post('/api/catalog/start', async (c) => {
+    const { catalogAll, hasMemorandum } = await import('./catalog.js');
+
+    const all = store.getRecent(5000);
+    const uncataloged = all.filter(m => !hasMemorandum(m.content)).length;
+
+    if (uncataloged === 0) {
+      return c.json({ status: 'complete', message: 'All memories already cataloged' });
+    }
+
+    catalogAll(store, (done, total, memoryId) => {
+      const mem = store.get(memoryId);
+      if (mem) events.emit('memory:updated', mem);
+    }).then(result => {
+      process.stderr.write(`Catalog complete: ${result.cataloged} cataloged, ${result.failed} failed\n`);
+    });
+
+    return c.json({ status: 'started', uncataloged });
+  });
+
+  app.get('/api/catalog/status', async (c) => {
+    const { hasMemorandum } = await import('./catalog.js');
+    const all = store.getRecent(5000);
+    const total = all.length;
+    const cataloged = all.filter(m => hasMemorandum(m.content)).length;
+    return c.json({ total, cataloged, remaining: total - cataloged });
+  });
+
   // --- Full graph for Cockpit ---
 
   app.get('/api/graph/full', (c) => {
