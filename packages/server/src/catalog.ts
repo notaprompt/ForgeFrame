@@ -9,7 +9,7 @@
 import type { MemoryStore } from '@forgeframe/memory';
 
 const OLLAMA_URL = process.env.FORGEFRAME_OLLAMA_URL || 'http://localhost:11434';
-const CATALOG_MODEL = process.env.FORGEFRAME_CATALOG_MODEL || 'qwen3.5:9b';
+const CATALOG_MODEL = process.env.FORGEFRAME_CATALOG_MODEL || 'llama3.2:1b';
 
 interface Memorandum {
   title: string;
@@ -56,14 +56,12 @@ function formatMemorandum(memo: Memorandum): string {
   return lines.join('\n');
 }
 
-const CATALOG_PROMPT = `Read this memory content. Return a JSON object with exactly these fields:
-- "title": 5-10 word summary of what this is about
-- "insight": one sentence — the key thesis, decision, or friction point
-- "patterns": array of 3-5 conceptual pattern tags (not topic words — think about what kind of thinking this represents)
+const CATALOG_PROMPT = `Summarize this text in JSON format.
 
-Return ONLY valid JSON, no markdown fences, no explanation.
+Respond with this exact JSON structure:
+{"title": "<brief 5-10 word title>", "insight": "<key decision, thesis or friction in one sentence>", "patterns": ["<concept1>", "<concept2>", "<concept3>"]}
 
-Memory content:
+Text:
 `;
 
 /**
