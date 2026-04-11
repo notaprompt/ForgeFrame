@@ -414,10 +414,25 @@
   .inspector-empty-icon { font-size: 28px; opacity: 0.3; }
 
   .mem-detail { padding: 16px 0; }
+  .memo-title {
+    font-family: var(--font-ui); font-size: 15px; font-weight: 600;
+    color: var(--t1); line-height: 1.4; margin-bottom: 8px;
+  }
+  .memo-insight {
+    font-family: var(--font-ui); font-size: 12px; font-weight: 400;
+    color: var(--t2); line-height: 1.5; margin-bottom: 10px;
+    padding-left: 8px; border-left: 2px solid var(--gold-dim);
+    font-style: italic;
+  }
+  .memo-patterns { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 12px; }
+  .mtag.pattern {
+    background: var(--gold-bg); color: var(--gold); border-color: var(--gold-dim);
+  }
   .mem-detail-content {
-    font-family: var(--font-mono); font-size: 12px;
-    font-weight: 400; line-height: 1.7; color: var(--t1);
-    margin-bottom: 12px;
+    font-family: var(--font-mono); font-size: 11px;
+    font-weight: 400; line-height: 1.7; color: var(--t3);
+    margin-bottom: 12px; padding-top: 8px;
+    border-top: 1px solid var(--border);
   }
   .mem-detail-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 12px; }
   .mem-detail-strength { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
@@ -837,12 +852,31 @@
 
   function firstMeaningfulLine(str) {
     if (!str) return '';
+    // If cataloged, extract title
+    if (str.trimStart().startsWith('[Title]:')) {
+      return str.trimStart().slice(8).split('\n')[0].trim();
+    }
     var lines = str.split('\n');
     for (var i = 0; i < lines.length; i++) {
       var line = lines[i].trim();
       if (line.length > 0) return line;
     }
     return '';
+  }
+
+  function extractMemorandum(str) {
+    if (!str || !str.trimStart().startsWith('[Title]:')) return null;
+    var parts = str.split('\n---\n');
+    var header = parts[0] || '';
+    var memo = { title: '', insight: '', patterns: [], rawContent: parts.slice(1).join('\n---\n').trim() };
+    var lines = header.split('\n');
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i].trim();
+      if (line.startsWith('[Title]:')) memo.title = line.slice(8).trim();
+      else if (line.startsWith('[Insight]:')) memo.insight = line.slice(10).trim();
+      else if (line.startsWith('[Patterns]:')) memo.patterns = line.slice(11).split(',').map(function(s) { return s.trim(); }).filter(Boolean);
+    }
+    return memo;
   }
 
   function contentPreview(str, lines) {
@@ -1393,11 +1427,40 @@
 
     if (state.inspectorTab === 'memory') {
       var detail = el('div', { className: 'mem-detail' });
+      var memo = extractMemorandum(mem.content);
 
-      var content = el('div', { className: 'mem-detail-content' });
-      content.style.whiteSpace = 'pre-wrap';
-      content.textContent = mem.content || '';
-      detail.appendChild(content);
+      if (memo) {
+        // Show structured memorandum
+        var titleEl = el('div', { className: 'memo-title' });
+        titleEl.textContent = memo.title;
+        detail.appendChild(titleEl);
+
+        if (memo.insight) {
+          var insightEl = el('div', { className: 'memo-insight' });
+          insightEl.textContent = memo.insight;
+          detail.appendChild(insightEl);
+        }
+
+        if (memo.patterns.length > 0) {
+          var patternsDiv = el('div', { className: 'memo-patterns' });
+          for (var pi = 0; pi < memo.patterns.length; pi++) {
+            var ptag = el('span', { className: 'mtag pattern' });
+            ptag.textContent = memo.patterns[pi];
+            patternsDiv.appendChild(ptag);
+          }
+          detail.appendChild(patternsDiv);
+        }
+
+        var rawContent = el('div', { className: 'mem-detail-content' });
+        rawContent.style.whiteSpace = 'pre-wrap';
+        rawContent.textContent = memo.rawContent;
+        detail.appendChild(rawContent);
+      } else {
+        var content = el('div', { className: 'mem-detail-content' });
+        content.style.whiteSpace = 'pre-wrap';
+        content.textContent = mem.content || '';
+        detail.appendChild(content);
+      }
 
       if (mem.tags && mem.tags.length > 0) {
         var tagsDiv = el('div', { className: 'mem-detail-tags' });
