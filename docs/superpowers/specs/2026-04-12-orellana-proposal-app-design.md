@@ -161,11 +161,48 @@ FROM line_items GROUP BY service_id
 ```
 → real pricing ranges → suggested prices feature.
 
-## 5. PDF Template
+## 5. Brand Treatment
+
+### Philosophy
+
+Uncle's brand is stronger than he knows. 28 years, real crew, real website, QuickBooks invoicing, social media presence across 5+ platforms. The problem isn't the business — it's that the client-facing artifacts (verbal quotes, generic Intuit invoices) don't match the quality of the work.
+
+The proposal app doesn't invent a new brand. It surfaces the one that's already there and presents it at the level his clients deserve to see. Every design choice asks: does this make Orellana Landscaping look like a 28-year-old company that takes its work seriously?
+
+### What to preserve
+
+- The green/brown/leaf color palette from the existing logo and website — this is his identity
+- The tree-in-circle logo mark — recognizable, well-designed, don't touch it
+- The "Gardening & Construction Services" tagline — accurate scope descriptor
+- The bilingual character of the business — Spanish is not an afterthought, it's core
+- The directness — uncle tells you the price, no games. The proposal should feel the same way.
+
+### What to modernize
+
+- **Typography:** Plus Jakarta Sans replaces system defaults. Geometric, modern, high readability — signals a business that's current without trying to look like a tech startup.
+- **Document structure:** Line items, totals, deposit breakdown — things uncle already communicates verbally, now presented in a format that builds trust and survives being forwarded.
+- **Payment options visibility:** Uncle already accepts Visa, Mastercard, Discover, Amex, bank transfer, PayPal, and Venmo through QuickBooks Payments. His clients don't know this until the invoice arrives. The proposal should surface these options earlier — reduce the gap between "I want this" and "here's my money."
+- **Financing as a feature:** The QR-code BNPL option positions Orellana alongside contractors twice his size. Homeowners comparing 3 landscapers will notice which one offers monthly payments.
+
+### What to add
+
+- **"Ways to Pay" section on the PDF** — payment method icons (Visa/MC/Amex/Discover/PayPal/Venmo) shown on the proposal itself, not just the invoice. Client sees payment flexibility before committing. If uncle enables Apple Pay in QuickBooks Payments (it's a toggle), add that icon too.
+- **Professional validity period** — "valid for 30 days" creates soft urgency without being pushy
+- **Proposal framing** — client receives a "proposal," not an "invoice." Psychologically different: a proposal is an offer to consider, an invoice is a demand to pay.
+
+### The audience lens
+
+Uncle's clients are Northern Virginia homeowners and commercial property managers. They're comparing him against competitors who may have slicker marketing but less experience. The proposal needs to:
+- Look professional enough that a property management company would file it
+- Feel personal enough that a homeowner trusts the person behind it
+- Communicate price clearly enough that there's no ambiguity about what they're paying for
+- Offer enough payment flexibility that "I can't afford it right now" becomes "I can do $273/mo"
+
+## 6. PDF Template
 
 ### Design Philosophy
 
-Mirrors the QuickBooks invoice structure uncle already knows (line items, rates, totals) but wraps it in a professional, branded presentation. Not a redesign of how he communicates — a better-dressed version.
+Mirrors the QuickBooks invoice structure uncle already knows (line items, rates, totals) but wraps it in the branded presentation described in Section 5. Not a redesign of how he communicates — a better-dressed version.
 
 **Typography:** Plus Jakarta Sans — geometric, modern, high readability. Self-hosted woff2 embedded in React-PDF template.
 
@@ -205,6 +242,11 @@ Both include:
 - "0% APR options available" callout
 - Bilingual copy
 
+**Ways to Pay block**
+- Row of payment method icons: Visa, Mastercard, Amex, Discover, PayPal, Venmo (+ Apple Pay if enabled)
+- Small text: "We accept all major payment methods" / "Aceptamos todos los métodos de pago principales"
+- Sits between financing CTA and notes — the client sees total → financing option → payment methods → notes. Natural decision flow.
+
 **Notes block (conditional)**
 - Rendered below a thin rule when notes are present
 
@@ -228,7 +270,7 @@ Both include:
 - Same data fields (service, description, qty, price, amount)
 - Clean and readable — not overdesigned
 
-## 6. Financing Integration
+## 7. Financing Integration
 
 ### The Problem It Solves
 
@@ -255,7 +297,7 @@ Alternatives: Hearth, GreenSky (Goldman Sachs). Uncle can evaluate and pick.
 
 The proposal app and the payment recovery thread are now the same product. The best collection automation is making sure you never need to collect.
 
-## 7. Technical Decisions
+## 8. Technical Decisions
 
 | Decision | Choice | Why |
 |----------|--------|-----|
@@ -269,7 +311,23 @@ The proposal app and the payment recovery thread are now the same product. The b
 | Delivery | Native share sheet (Web Share API) | Handles SMS, email, WhatsApp, AirDrop without building any of it |
 | QR generation | Client-side (qrcode.js or similar) | No server needed, dynamic per proposal |
 
-## 8. What's NOT in v0
+## 9. Relationship to Existing Stack
+
+This app **enhances** uncle's workflow — it does not replace anything he already uses.
+
+| What he has | What it does | What the proposal app does |
+|------------|-------------|---------------------------|
+| QuickBooks | Invoicing, payment collection | Stays. The proposal app sits **upstream** — generates the proposal, uncle still sends the QuickBooks invoice after the job. |
+| QuickBooks Payments | Accepts Visa/MC/Amex/Discover/PayPal/Venmo | Stays. The proposal just surfaces these payment methods earlier so clients know before committing. |
+| iPhone 16 | Calls, texts, verbal quotes | Stays. The app is a tool on the same phone — opens from home screen, generates PDF, shares via the same text thread. |
+| Yahoo email | Business communication | Stays. Untouched. |
+| Website (orellanalandscapingllc.net) | Lead generation, credibility | Stays. Logo and branding pulled from the existing site. Proposal links back to it. |
+| Verbal quoting | Price communication | **Enhanced, not replaced.** Uncle still decides the price in his head. The app just turns that decision into a professional document. |
+| Mental pricing model | "It depends" per-job pricing | **Captured over time.** Every proposal stores (service, price) data. After enough usage, the app can suggest prices based on his own history. His gut becomes quantified — but he's never forced to use the suggestions. |
+
+Nothing gets uninstalled. Nothing changes about how uncle runs his business day-to-day. The app adds one new step between "I know what this costs" and "I tell the client" — and that step produces a branded PDF instead of a verbal number.
+
+## 10. What's NOT in v0
 
 - Calculator/suggested prices (v1 — needs data from real usage first)
 - User accounts / team roles (v1 — single shared login for now)
@@ -281,7 +339,7 @@ The proposal app and the payment recovery thread are now the same product. The b
 - Voice input (v1/v2 — form structure supports it later)
 - Photo attachment on proposals (v1/v2)
 
-## 9. Success Criteria
+## 11. Success Criteria
 
 Uncle opens the app from his truck, creates a proposal in under 60 seconds, taps share, client gets a professional branded PDF via text. If financing is enabled, client can scan the QR code and apply for monthly payments. Uncle gets paid.
 
