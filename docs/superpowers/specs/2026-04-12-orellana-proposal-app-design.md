@@ -51,18 +51,21 @@ QuickBooks invoice screenshot analyzed: $3,175 overdue invoice to Mr. Rahman (Sp
 
 ### 4 screens, linear flow + settings:
 
-**1. Proposals List (home screen)**
-- List of all proposals, newest first
-- Each card: client name, total, date, status (draft / sent)
+**1. Documents List (home screen)**
+- List of all documents (proposals, invoices, past due notices), newest first
+- Each card: doc type badge, client name, total, date, status (draft / sent)
 - "Duplicate" button on each card — clones for quick re-quoting
-- "New Proposal" button at bottom
+- "Convert" button — proposal→invoice or invoice→past due (one tap)
+- Filter tabs: All | Proposals | Invoices | Past Due
+- "New Document" button at bottom
 - Settings gear icon in top bar
 
 **2. New Document (or duplicated draft)**
-- Document type selector: **Proposal** (default) or **Past Due Notice**
-  - Past Due shows an additional "Due Date" field (the original payment due date)
-  - Changes PDF header from "Proposal" → "Past Due Notice" / "Aviso de Pago Vencido"
-  - Auto-enables financing QR code (the whole point of a past due notice is offering a payment path)
+- Document type selector: **Proposal** (default) | **Invoice** | **Past Due Notice**
+  - **Proposal:** pre-work quote. Header: "Proposal" / "Propuesta". Shows validity period.
+  - **Invoice:** post-work bill. Header: "Invoice" / "Factura". Shows due date, invoice number. Payment is expected — Ways to Pay and financing are prominent.
+  - **Past Due:** overdue collection. Header: "Past Due Notice" / "Aviso de Pago Vencido". Shows original due date + days overdue. Auto-enables financing QR (the whole point is offering a payment path).
+  - A proposal can be **converted** to an invoice (one tap — copies all line items, switches type, adds due date). An invoice can be converted to past due. Natural lifecycle: Proposal → Invoice → Past Due.
 - Client name — autocompletes from previous proposals (fills phone/email/address too)
 - Client phone (optional), email (optional), address
 - Document language toggle (EN/ES) — controls PDF output, independent of UI language
@@ -109,7 +112,7 @@ QuickBooks invoice screenshot analyzed: $3,175 overdue invoice to Mr. Rahman (Sp
 | client_phone | text, nullable | |
 | client_email | text, nullable | |
 | client_address | text, nullable | |
-| doc_type | text | 'proposal' or 'past_due' |
+| doc_type | text | 'proposal', 'invoice', or 'past_due' |
 | language | text | 'en' or 'es' |
 | deposit_amount | numeric, nullable | null = no deposit |
 | show_financing | boolean | default false |
@@ -299,27 +302,25 @@ Alternatives: Hearth, GreenSky (Goldman Sachs). Uncle can evaluate and pick.
 - Monthly estimate auto-calculated: total / 12 (displayed on PDF)
 - Uncle signs up as a Wisetack merchant (separate from this app — we just generate the link)
 
-### Dual Mode: Prevention AND Recovery
+### Three Document Types, One Lifecycle
 
-The financing QR code works in two directions:
+The same PDF engine produces three document types that represent the natural lifecycle of a job:
 
-**Proposal mode (before the job):**
-- Framing: "Flexible Payment Options Available"
-- Tone: inviting, optional
-- Goal: convert hesitant clients, prevent future non-payment
+**Proposal → Invoice → Past Due**
 
-**Past Due mode (after the job, unpaid):**
-- Framing: "Your balance is past due — monthly payment options available"
-- Tone: firm but offering a path forward
-- Goal: recover money from ghost clients by giving them an easy way to pay
+| | Proposal | Invoice | Past Due |
+|---|---------|---------|----------|
+| **When** | Before the job | After the job | When payment is late |
+| **Header** | "Proposal" / "Propuesta" | "Invoice" / "Factura" | "Past Due Notice" / "Aviso de Pago Vencido" |
+| **Date field** | Valid Until | Due Date | Original Due Date + Days Overdue |
+| **Financing QR** | Optional (toggle) | Optional (toggle) | Auto-enabled |
+| **Ways to Pay** | Shown | Prominent | Prominent |
+| **Tone** | "Here's what it'll cost" | "Here's what you owe" | "This is overdue — here's a path to pay" |
+| **Goal** | Convert leads, offer flexibility | Collect payment, show professionalism | Recover money, offer installments |
 
-Same PDF engine, same QR code, same financing provider. The proposal form gets a **document type** selector:
-- **Proposal** (default) — pre-work quote with validity period
-- **Past Due Notice** — post-work reminder with overdue date and balance
+**Conversion flow:** A proposal converts to an invoice with one tap (copies all line items, switches type, adds due date). An invoice converts to a past due notice (adds overdue indicator, auto-enables financing). Uncle never re-enters data — the document evolves with the job.
 
-The past due notice reuses the same line items table (showing what work was done), but replaces "Proposal" with "Past Due Notice" / "Aviso de Pago Vencido", replaces "Valid Until" with "Due Date" / "Originally Due", adds an overdue indicator, and reframes the financing CTA as a recovery mechanism rather than a convenience.
-
-This means uncle can take his existing overdue clients (like the $3,175 Springfield job), create a past due notice in the app with the same line items, and text it to them with a QR code that says "scan here to set up monthly payments." The client who ghosted because they couldn't afford $3,175 at once can now pay $273/mo. Uncle gets paid by Wisetack immediately.
+**The Springfield example:** Uncle already has a $3,175 overdue invoice for Mr. Rahman. He opens the app, creates a past due notice with the same line items, and texts it. Mr. Rahman scans the QR code, applies for $273/mo financing, gets approved. Wisetack pays uncle the full $3,175 immediately. The ghost client is no longer a ghost — he's a customer with a payment plan.
 
 ### Why This Matters
 
