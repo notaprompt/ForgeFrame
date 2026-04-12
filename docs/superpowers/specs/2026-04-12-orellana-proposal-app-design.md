@@ -58,10 +58,14 @@ QuickBooks invoice screenshot analyzed: $3,175 overdue invoice to Mr. Rahman (Sp
 - "New Proposal" button at bottom
 - Settings gear icon in top bar
 
-**2. New Proposal (or duplicated draft)**
+**2. New Document (or duplicated draft)**
+- Document type selector: **Proposal** (default) or **Past Due Notice**
+  - Past Due shows an additional "Due Date" field (the original payment due date)
+  - Changes PDF header from "Proposal" → "Past Due Notice" / "Aviso de Pago Vencido"
+  - Auto-enables financing QR code (the whole point of a past due notice is offering a payment path)
 - Client name — autocompletes from previous proposals (fills phone/email/address too)
 - Client phone (optional), email (optional), address
-- Proposal language toggle (EN/ES) — controls PDF output, independent of UI language
+- Document language toggle (EN/ES) — controls PDF output, independent of UI language
 - "Add Line Item" button → row:
   - Service picker (from configurable list)
   - Description (optional free text)
@@ -105,10 +109,12 @@ QuickBooks invoice screenshot analyzed: $3,175 overdue invoice to Mr. Rahman (Sp
 | client_phone | text, nullable | |
 | client_email | text, nullable | |
 | client_address | text, nullable | |
+| doc_type | text | 'proposal' or 'past_due' |
 | language | text | 'en' or 'es' |
 | deposit_amount | numeric, nullable | null = no deposit |
 | show_financing | boolean | default false |
 | notes | text, nullable | |
+| due_date | date, nullable | For past_due docs — original due date |
 | status | text | 'draft' or 'sent' |
 | sent_at | timestamp, nullable | |
 | total | numeric | Computed client-side on save |
@@ -293,9 +299,31 @@ Alternatives: Hearth, GreenSky (Goldman Sachs). Uncle can evaluate and pick.
 - Monthly estimate auto-calculated: total / 12 (displayed on PDF)
 - Uncle signs up as a Wisetack merchant (separate from this app — we just generate the link)
 
+### Dual Mode: Prevention AND Recovery
+
+The financing QR code works in two directions:
+
+**Proposal mode (before the job):**
+- Framing: "Flexible Payment Options Available"
+- Tone: inviting, optional
+- Goal: convert hesitant clients, prevent future non-payment
+
+**Past Due mode (after the job, unpaid):**
+- Framing: "Your balance is past due — monthly payment options available"
+- Tone: firm but offering a path forward
+- Goal: recover money from ghost clients by giving them an easy way to pay
+
+Same PDF engine, same QR code, same financing provider. The proposal form gets a **document type** selector:
+- **Proposal** (default) — pre-work quote with validity period
+- **Past Due Notice** — post-work reminder with overdue date and balance
+
+The past due notice reuses the same line items table (showing what work was done), but replaces "Proposal" with "Past Due Notice" / "Aviso de Pago Vencido", replaces "Valid Until" with "Due Date" / "Originally Due", adds an overdue indicator, and reframes the financing CTA as a recovery mechanism rather than a convenience.
+
+This means uncle can take his existing overdue clients (like the $3,175 Springfield job), create a past due notice in the app with the same line items, and text it to them with a QR code that says "scan here to set up monthly payments." The client who ghosted because they couldn't afford $3,175 at once can now pay $273/mo. Uncle gets paid by Wisetack immediately.
+
 ### Why This Matters
 
-The proposal app and the payment recovery thread are now the same product. The best collection automation is making sure you never need to collect.
+The proposal app and the payment recovery thread are now the same product. Prevention upstream (financing on proposals) and recovery downstream (financing on past due notices) — both powered by the same mechanism. The best collection automation is making sure you never need to collect, but when you do, make it easy for the client to say yes.
 
 ## 8. Technical Decisions
 
