@@ -5,7 +5,7 @@
  */
 
 import { EventEmitter } from 'events';
-import type { Memory, MemoryEdge, GuardianTemperature, HebbianBatchUpdate } from '@forgeframe/memory';
+import type { Memory, MemoryEdge, GuardianTemperature, HebbianBatchUpdate, ConsolidationProposal, ConsolidationResult } from '@forgeframe/memory';
 
 export interface ServerEventMap {
   'memory:created': [memory: Memory];
@@ -20,6 +20,9 @@ export interface ServerEventMap {
   'edge:deleted':   [edgeId: string];
   'guardian:update': [temp: GuardianTemperature];
   'hebbian:batch-update': [update: HebbianBatchUpdate];
+  'consolidation:proposed': [proposal: ConsolidationProposal];
+  'consolidation:complete': [result: ConsolidationResult];
+  'consolidation:rejected': [proposal: ConsolidationProposal];
 }
 
 export class ServerEvents extends EventEmitter<ServerEventMap> {}
