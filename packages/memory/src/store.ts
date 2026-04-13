@@ -7,7 +7,7 @@
 
 import Database from 'better-sqlite3';
 import { randomUUID } from 'crypto';
-import type { Memory, MemoryCreateInput, MemoryUpdateInput, MemoryConfig, ReconsolidationOptions, Session, SessionCreateInput, SessionListOptions, DistilledArtifact, DistilledArtifactInput, MemoryEdge, EdgeCreateInput } from './types.js';
+import type { Memory, MemoryCreateInput, MemoryUpdateInput, MemoryConfig, ReconsolidationOptions, Session, SessionCreateInput, SessionListOptions, DistilledArtifact, DistilledArtifactInput, MemoryEdge, EdgeCreateInput, ConsolidationCluster, ConsolidationProposal } from './types.js';
 import { DEFAULT_CONFIG, TRIM_TAGS, CONSTITUTIONAL_TAGS } from './types.js';
 
 export class MemoryStore {
@@ -23,7 +23,7 @@ export class MemoryStore {
     this._init();
   }
 
-  private static readonly SCHEMA_VERSION = 6;
+  private static readonly SCHEMA_VERSION = 7;
 
   private static readonly MIGRATIONS: Record<number, string> = {
     1: `
@@ -124,6 +124,23 @@ export class MemoryStore {
     `,
     6: `
       ALTER TABLE memory_edges ADD COLUMN last_hebbian_at INTEGER;
+    `,
+    7: `
+      CREATE TABLE IF NOT EXISTS consolidation_proposals (
+        id TEXT PRIMARY KEY,
+        cluster_memory_ids TEXT NOT NULL,
+        cluster_avg_weight REAL NOT NULL,
+        cluster_edge_count INTEGER NOT NULL,
+        title TEXT NOT NULL,
+        summary TEXT NOT NULL,
+        suggested_tags TEXT NOT NULL DEFAULT '[]',
+        status TEXT NOT NULL DEFAULT 'pending',
+        depth INTEGER NOT NULL DEFAULT 1,
+        created_at INTEGER NOT NULL,
+        resolved_at INTEGER,
+        rejected_until INTEGER
+      );
+      CREATE INDEX IF NOT EXISTS idx_proposals_status ON consolidation_proposals(status);
     `,
   };
 
@@ -794,6 +811,85 @@ export class MemoryStore {
     }
 
     return linked;
+  }
+
+  // -- Consolidation Proposals --
+
+  createProposal(input: {
+    cluster: ConsolidationCluster;
+    title: string;
+    summary: string;
+    suggestedTags: string[];
+    depth: number;
+  }): ConsolidationProposal {
+    const id = randomUUID();
+    const now = Date.now();
+    this._db.prepare(`
+      INSERT INTO consolidation_proposals
+        (id, cluster_memory_ids, cluster_avg_weight, cluster_edge_count,
+         title, summary, suggested_tags, status, depth, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)
+    `).run(
+      id,
+      JSON.stringify(input.cluster.memoryIds),
+      input.cluster.avgWeight,
+      input.cluster.edgeCount,
+      input.title,
+      input.summary,
+      JSON.stringify(input.suggestedTags),
+      input.depth,
+      now,
+    );
+    return this.getProposal(id)!;
+  }
+
+  getProposal(id: string): ConsolidationProposal | null {
+    const row = this._db.prepare(
+      'SELECT * FROM consolidation_proposals WHERE id = ?'
+    ).get(id) as any;
+    return row ? this._rowToProposal(row) : null;
+  }
+
+  listProposals(status?: 'pending' | 'approved' | 'rejected'): ConsolidationProposal[] {
+    let sql = 'SELECT * FROM consolidation_proposals';
+    const params: unknown[] = [];
+    if (status) {
+      sql += ' WHERE status = ?';
+      params.push(status);
+    }
+    sql += ' ORDER BY created_at DESC';
+    const rows = this._db.prepare(sql).all(...params) as any[];
+    return rows.map((r) => this._rowToProposal(r));
+  }
+
+  resolveProposal(id: string, status: 'approved' | 'rejected'): ConsolidationProposal | null {
+    const now = Date.now();
+    const rejectedUntil = status === 'rejected' ? now + 7 * 24 * 60 * 60 * 1000 : null;
+    this._db.prepare(`
+      UPDATE consolidation_proposals
+      SET status = ?, resolved_at = ?, rejected_until = ?
+      WHERE id = ?
+    `).run(status, now, rejectedUntil, id);
+    return this.getProposal(id);
+  }
+
+  private _rowToProposal(row: any): ConsolidationProposal {
+    return {
+      id: row.id,
+      cluster: {
+        memoryIds: JSON.parse(row.cluster_memory_ids),
+        avgWeight: row.cluster_avg_weight,
+        edgeCount: row.cluster_edge_count,
+      },
+      title: row.title,
+      summary: row.summary,
+      suggestedTags: JSON.parse(row.suggested_tags),
+      status: row.status,
+      depth: row.depth,
+      createdAt: row.created_at,
+      resolvedAt: row.resolved_at ?? null,
+      rejectedUntil: row.rejected_until ?? null,
+    };
   }
 
   private _rowToEdge(row: any): MemoryEdge {
