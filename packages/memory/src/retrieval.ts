@@ -8,14 +8,25 @@
 import type { MemoryStore } from './store.js';
 import type { Embedder } from './embedder.js';
 import type { Memory, MemoryResult, MemoryQuery } from './types.js';
+import { HebbianEngine } from './hebbian.js';
 
 export class MemoryRetriever {
   private _store: MemoryStore;
   private _embedder: Embedder | null;
+  private _hebbian: HebbianEngine | null;
 
-  constructor(store: MemoryStore, embedder?: Embedder | null) {
+  constructor(store: MemoryStore, embedder?: Embedder | null, hebbianStore?: MemoryStore) {
     this._store = store;
     this._embedder = embedder ?? null;
+    this._hebbian = hebbianStore ? new HebbianEngine(hebbianStore) : null;
+  }
+
+  setGuardianMultiplier(multiplier: number): void {
+    this._hebbian?.setGuardianMultiplier(multiplier);
+  }
+
+  get hebbian(): HebbianEngine | null {
+    return this._hebbian;
   }
 
   /**
@@ -81,6 +92,11 @@ export class MemoryRetriever {
           results.push({ memory: mem, score: mem.strength * 0.2 });
         }
       }
+    }
+
+    // Hebbian co-retrieval update
+    if (this._hebbian && results.length >= 2) {
+      this._hebbian.hebbianUpdate(results.map((r) => r.memory));
     }
 
     return results;
@@ -158,6 +174,11 @@ export class MemoryRetriever {
     // Record access
     for (const r of final) {
       this._store.recordAccess(r.memory.id);
+    }
+
+    // Hebbian co-retrieval update
+    if (this._hebbian && final.length >= 2) {
+      this._hebbian.hebbianUpdate(final.map((r) => r.memory));
     }
 
     return final;

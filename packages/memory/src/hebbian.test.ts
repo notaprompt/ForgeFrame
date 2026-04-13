@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { MemoryStore } from './store.js';
 import { HebbianEngine } from './hebbian.js';
+import { MemoryRetriever } from './retrieval.js';
 
 describe('Hebbian Engine — Schema', () => {
   let store: MemoryStore;
@@ -354,5 +355,36 @@ describe('Hebbian Engine — Guardian temperature modulation', () => {
     engine.hebbianUpdate([m1, m2]);
 
     expect(store.getEdgeBetween(m1.id, m3.id)!.weight).toBeCloseTo(0.49);
+  });
+});
+
+describe('Hebbian Engine — Retriever integration', () => {
+  let store: MemoryStore;
+  let retriever: MemoryRetriever;
+
+  beforeEach(() => {
+    store = new MemoryStore({ dbPath: ':memory:' });
+    retriever = new MemoryRetriever(store, null, store);
+  });
+
+  afterEach(() => {
+    store.close();
+  });
+
+  it('query() triggers Hebbian update on co-retrieved results', () => {
+    const m1 = store.create({ content: 'sovereignty architecture patterns' });
+    const m2 = store.create({ content: 'sovereignty data principles' });
+    const edge = store.createEdge({
+      sourceId: m1.id,
+      targetId: m2.id,
+      relationType: 'similar',
+      weight: 1.0,
+    });
+
+    retriever.query({ text: 'sovereignty' });
+
+    const updated = store.getEdge(edge.id)!;
+    expect(updated.weight).toBe(1.05);
+    expect(updated.lastHebbianAt).not.toBeNull();
   });
 });
