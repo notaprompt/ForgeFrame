@@ -9,7 +9,7 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { streamSSE } from 'hono/streaming';
 import { serve } from '@hono/node-server';
-import { GuardianComputer, ConsolidationEngine } from '@forgeframe/memory';
+import { GuardianComputer, ConsolidationEngine, ContradictionEngine } from '@forgeframe/memory';
 import type { GuardianSignals, MemoryEdge, MemoryStore, Generator } from '@forgeframe/memory';
 import type { ServerEvents } from './events.js';
 import { bearerAuth } from './auth.js';
@@ -237,6 +237,43 @@ export function startHttpServer({ store, events, port, hostname, generator }: Ht
     return c.json(proposal);
   });
 
+  // --- Contradiction endpoints ---
+
+  app.get('/api/contradictions/proposals', (c) => {
+    const status = c.req.query('status') as 'pending' | 'resolved' | undefined;
+    const proposals = store.listContradictionProposals(status);
+    return c.json(proposals);
+  });
+
+  app.get('/api/contradictions/proposals/:id', (c) => {
+    const proposal = store.getContradictionProposal(c.req.param('id'));
+    if (!proposal) return c.json({ error: 'Not found' }, 404);
+    return c.json(proposal);
+  });
+
+  app.post('/api/contradictions/scan', async (c) => {
+    if (!generator) return c.json({ error: 'Generator not configured' }, 503);
+    const engine = new ContradictionEngine(store, generator);
+    const proposals = await engine.scan();
+    events.emit('contradiction:scanned', proposals);
+    return c.json({ proposals, count: proposals.length });
+  });
+
+  app.post('/api/contradictions/proposals/:id/resolve', async (c) => {
+    if (!generator) return c.json({ error: 'Generator not configured' }, 503);
+    const body = await c.req.json<{ action: string }>().catch(() => ({ action: '' }));
+    const validActions = ['supersede-a-with-b', 'supersede-b-with-a', 'merge', 'keep-both'] as const;
+    type Action = typeof validActions[number];
+    if (!validActions.includes(body.action as Action)) {
+      return c.json({ error: 'Invalid action. Must be one of: supersede-a-with-b, supersede-b-with-a, merge, keep-both' }, 400);
+    }
+    const engine = new ContradictionEngine(store, generator);
+    const result = engine.resolve(c.req.param('id'), body.action as Action);
+    if (!result) return c.json({ error: 'Proposal not found, not pending, or is a constitutional tension' }, 404);
+    events.emit('contradiction:resolved', result);
+    return c.json(result);
+  });
+
   // --- Catalog endpoint (triggers background enrichment) ---
 
   app.post('/api/catalog/start', async (c) => {
@@ -377,6 +414,20 @@ export function startHttpServer({ store, events, port, hostname, generator }: Ht
         stream.writeSSE({
           event: 'consolidation:rejected',
           data: JSON.stringify(proposal),
+        });
+      });
+
+      on('contradiction:scanned', (proposals) => {
+        stream.writeSSE({
+          event: 'contradiction:scanned',
+          data: JSON.stringify(proposals),
+        });
+      });
+
+      on('contradiction:resolved', (result) => {
+        stream.writeSSE({
+          event: 'contradiction:resolved',
+          data: JSON.stringify(result),
         });
       });
 

@@ -5,7 +5,7 @@
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { MemoryStore, MemoryRetriever, Session, Embedder, Generator } from '@forgeframe/memory';
-import { GuardianComputer, ConsolidationEngine } from '@forgeframe/memory';
+import { GuardianComputer, ConsolidationEngine, ContradictionEngine } from '@forgeframe/memory';
 import type { ProvenanceLogger } from './provenance.js';
 import type { ServerEvents } from './events.js';
 import type { ServerConfig } from './config.js';
@@ -40,6 +40,7 @@ export function registerTools(
   const sessionRef = { current: session };
   const guardian = new GuardianComputer();
   const consolidation = new ConsolidationEngine(store, generator);
+  const contradictions = new ContradictionEngine(store, generator);
 
   server.tool(
     'memory_save',
@@ -545,6 +546,42 @@ export function registerTools(
         }
         events.emit('consolidation:rejected', proposal);
         return toolResult(proposal);
+      } catch (err) {
+        return toolError(err);
+      }
+    },
+  );
+
+  server.tool(
+    'contradiction_scan',
+    'Scan for contradictions in memory graph. Finds contradicts edges, generates LLM analysis. Constitutional tensions are surfaced but cannot be auto-resolved.',
+    {},
+    async () => {
+      try {
+        const proposals = await contradictions.scan();
+        events.emit('contradiction:scanned', proposals);
+        return toolResult({ proposals, count: proposals.length });
+      } catch (err) {
+        return toolError(err);
+      }
+    },
+  );
+
+  server.tool(
+    'contradiction_resolve',
+    'Resolve a contradiction proposal. Actions: supersede-a-with-b, supersede-b-with-a, merge, keep-both. Constitutional tensions cannot be resolved.',
+    {
+      proposalId: z.string().describe('Proposal ID to resolve'),
+      action: z.enum(['supersede-a-with-b', 'supersede-b-with-a', 'merge', 'keep-both']).describe('Resolution action'),
+    },
+    async ({ proposalId, action }) => {
+      try {
+        const result = contradictions.resolve(proposalId, action);
+        if (!result) {
+          return toolResult({ error: 'Proposal not found, not pending, or is a constitutional tension' });
+        }
+        events.emit('contradiction:resolved', result);
+        return toolResult(result);
       } catch (err) {
         return toolError(err);
       }

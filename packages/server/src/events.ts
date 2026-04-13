@@ -5,7 +5,7 @@
  */
 
 import { EventEmitter } from 'events';
-import type { Memory, MemoryEdge, GuardianTemperature, HebbianBatchUpdate, ConsolidationProposal, ConsolidationResult } from '@forgeframe/memory';
+import type { Memory, MemoryEdge, GuardianTemperature, HebbianBatchUpdate, ConsolidationProposal, ConsolidationResult, ContradictionProposal, ContradictionResult } from '@forgeframe/memory';
 
 export interface ServerEventMap {
   'memory:created': [memory: Memory];
@@ -23,6 +23,8 @@ export interface ServerEventMap {
   'consolidation:proposed': [proposal: ConsolidationProposal];
   'consolidation:complete': [result: ConsolidationResult];
   'consolidation:rejected': [proposal: ConsolidationProposal];
+  'contradiction:scanned': [proposals: ContradictionProposal[]];
+  'contradiction:resolved': [result: ContradictionResult];
 }
 
 export class ServerEvents extends EventEmitter<ServerEventMap> {}
