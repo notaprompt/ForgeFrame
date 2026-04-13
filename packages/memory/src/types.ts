@@ -186,6 +186,34 @@ export interface HebbianBatchUpdate {
   created: Array<{ edgeId: string; sourceId: string; targetId: string; weight: number }>;
 }
 
+// --- Consolidation types ---
+
+export interface ConsolidationCluster {
+  memoryIds: string[];
+  avgWeight: number;
+  edgeCount: number;
+}
+
+export interface ConsolidationProposal {
+  id: string;
+  cluster: ConsolidationCluster;
+  title: string;
+  summary: string;
+  suggestedTags: string[];
+  status: 'pending' | 'approved' | 'rejected';
+  depth: number;
+  createdAt: number;
+  resolvedAt: number | null;
+  rejectedUntil: number | null;
+}
+
+export interface ConsolidationResult {
+  consolidatedMemoryId: string;
+  derivedFromEdges: string[];
+  migratedEdges: string[];
+  sourcesDecayed: string[];
+}
+
 // --- Guardian types ---
 
 export interface GuardianSignals {
