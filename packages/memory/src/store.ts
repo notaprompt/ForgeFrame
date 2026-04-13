@@ -813,6 +813,72 @@ export class MemoryStore {
     return linked;
   }
 
+  getConnectedComponents(): ConsolidationCluster[] {
+    const allEdges = this._db.prepare('SELECT * FROM memory_edges').all() as any[];
+    if (allEdges.length === 0) return [];
+
+    // Build adjacency list
+    const adj = new Map<string, Set<string>>();
+    const edgesByNode = new Map<string, any[]>();
+
+    for (const row of allEdges) {
+      const s = row.source_id;
+      const t = row.target_id;
+
+      if (!adj.has(s)) adj.set(s, new Set());
+      if (!adj.has(t)) adj.set(t, new Set());
+      adj.get(s)!.add(t);
+      adj.get(t)!.add(s);
+
+      if (!edgesByNode.has(s)) edgesByNode.set(s, []);
+      if (!edgesByNode.has(t)) edgesByNode.set(t, []);
+      edgesByNode.get(s)!.push(row);
+      edgesByNode.get(t)!.push(row);
+    }
+
+    // BFS to find components
+    const visited = new Set<string>();
+    const components: ConsolidationCluster[] = [];
+
+    for (const nodeId of adj.keys()) {
+      if (visited.has(nodeId)) continue;
+
+      const component: string[] = [];
+      const componentEdgeIds = new Set<string>();
+      const queue = [nodeId];
+      visited.add(nodeId);
+
+      while (queue.length > 0) {
+        const current = queue.shift()!;
+        component.push(current);
+
+        for (const neighbor of adj.get(current) ?? []) {
+          if (!visited.has(neighbor)) {
+            visited.add(neighbor);
+            queue.push(neighbor);
+          }
+        }
+
+        for (const edge of edgesByNode.get(current) ?? []) {
+          componentEdgeIds.add(edge.id);
+        }
+      }
+
+      const componentEdges = allEdges.filter((e) => componentEdgeIds.has(e.id));
+      const avgWeight = componentEdges.length > 0
+        ? componentEdges.reduce((sum: number, e: any) => sum + e.weight, 0) / componentEdges.length
+        : 0;
+
+      components.push({
+        memoryIds: component,
+        avgWeight,
+        edgeCount: componentEdges.length,
+      });
+    }
+
+    return components;
+  }
+
   // -- Consolidation Proposals --
 
   createProposal(input: {
