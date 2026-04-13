@@ -7,7 +7,7 @@
 
 import Database from 'better-sqlite3';
 import { randomUUID } from 'crypto';
-import type { Memory, MemoryCreateInput, MemoryUpdateInput, MemoryConfig, ReconsolidationOptions, Session, SessionCreateInput, SessionListOptions, DistilledArtifact, DistilledArtifactInput, MemoryEdge, EdgeCreateInput, ConsolidationCluster, ConsolidationProposal } from './types.js';
+import type { Memory, MemoryCreateInput, MemoryUpdateInput, MemoryConfig, ReconsolidationOptions, Session, SessionCreateInput, SessionListOptions, DistilledArtifact, DistilledArtifactInput, MemoryEdge, EdgeCreateInput, ConsolidationCluster, ConsolidationProposal, ContradictionProposal } from './types.js';
 import { DEFAULT_CONFIG, TRIM_TAGS, CONSTITUTIONAL_TAGS } from './types.js';
 
 export class MemoryStore {
@@ -23,7 +23,7 @@ export class MemoryStore {
     this._init();
   }
 
-  private static readonly SCHEMA_VERSION = 7;
+  private static readonly SCHEMA_VERSION = 8;
 
   private static readonly MIGRATIONS: Record<number, string> = {
     1: `
@@ -141,6 +141,22 @@ export class MemoryStore {
         rejected_until INTEGER
       );
       CREATE INDEX IF NOT EXISTS idx_proposals_status ON consolidation_proposals(status);
+    `,
+    8: `
+      CREATE TABLE IF NOT EXISTS contradiction_proposals (
+        id TEXT PRIMARY KEY,
+        memory_a_id TEXT NOT NULL,
+        memory_b_id TEXT NOT NULL,
+        edge_id TEXT NOT NULL,
+        analysis TEXT NOT NULL,
+        is_constitutional_tension INTEGER NOT NULL DEFAULT 0,
+        status TEXT NOT NULL DEFAULT 'pending',
+        resolution TEXT,
+        created_at INTEGER NOT NULL,
+        resolved_at INTEGER
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_contradiction_status ON contradiction_proposals(status);
     `,
   };
 
@@ -600,6 +616,13 @@ export class MemoryStore {
     return rows.map((r) => this._rowToEdge(r));
   }
 
+  getEdgesByType_global(relationType: string): MemoryEdge[] {
+    const rows = this._db.prepare(
+      'SELECT * FROM memory_edges WHERE relation_type = ? ORDER BY created_at'
+    ).all(relationType) as any[];
+    return rows.map((r) => this._rowToEdge(r));
+  }
+
   deleteEdge(id: string): boolean {
     const result = this._db.prepare('DELETE FROM memory_edges WHERE id = ?').run(id);
     return result.changes > 0;
@@ -955,6 +978,60 @@ export class MemoryStore {
       createdAt: row.created_at,
       resolvedAt: row.resolved_at ?? null,
       rejectedUntil: row.rejected_until ?? null,
+    };
+  }
+
+  // -- Contradiction Proposals --
+
+  createContradictionProposal(input: {
+    memoryAId: string;
+    memoryBId: string;
+    edgeId: string;
+    analysis: string;
+    isConstitutionalTension: boolean;
+  }): ContradictionProposal {
+    const id = randomUUID();
+    const now = Date.now();
+    this._db.prepare(`
+      INSERT INTO contradiction_proposals
+        (id, memory_a_id, memory_b_id, edge_id, analysis, is_constitutional_tension, status, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, 'pending', ?)
+    `).run(id, input.memoryAId, input.memoryBId, input.edgeId, input.analysis, input.isConstitutionalTension ? 1 : 0, now);
+    return this.getContradictionProposal(id)!;
+  }
+
+  getContradictionProposal(id: string): ContradictionProposal | null {
+    const row = this._db.prepare('SELECT * FROM contradiction_proposals WHERE id = ?').get(id) as any;
+    return row ? this._rowToContradictionProposal(row) : null;
+  }
+
+  listContradictionProposals(status?: 'pending' | 'resolved'): ContradictionProposal[] {
+    let sql = 'SELECT * FROM contradiction_proposals';
+    const params: unknown[] = [];
+    if (status) { sql += ' WHERE status = ?'; params.push(status); }
+    sql += ' ORDER BY created_at DESC';
+    return (this._db.prepare(sql).all(...params) as any[]).map((r) => this._rowToContradictionProposal(r));
+  }
+
+  resolveContradictionProposal(id: string, resolution: string): ContradictionProposal | null {
+    this._db.prepare(`
+      UPDATE contradiction_proposals SET status = 'resolved', resolution = ?, resolved_at = ? WHERE id = ?
+    `).run(resolution, Date.now(), id);
+    return this.getContradictionProposal(id);
+  }
+
+  private _rowToContradictionProposal(row: any): ContradictionProposal {
+    return {
+      id: row.id,
+      memoryAId: row.memory_a_id,
+      memoryBId: row.memory_b_id,
+      edgeId: row.edge_id,
+      analysis: row.analysis,
+      isConstitutionalTension: row.is_constitutional_tension === 1,
+      status: row.status,
+      resolution: row.resolution ?? null,
+      createdAt: row.created_at,
+      resolvedAt: row.resolved_at ?? null,
     };
   }
 
