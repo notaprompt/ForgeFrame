@@ -90,7 +90,7 @@ The cockpit auto-names tabs based on the active model and project (`opus:ForgeFr
 
 ## Status
 
-Active daily driver. 350+ memories, 90+ sessions, multi-repo swarm coordination. All four packages build and test clean (199 tests). Memory and server published to npm at 0.2.0.
+Active daily driver. All four packages build and test clean. Memory and server on npm at 0.2.0.
 
 ## Cost
 
@@ -108,6 +108,3 @@ The memory is yours. The infrastructure that protects it is copyleft.
 
 [campos.works/services](https://campos.works/services) — setup, integration, and consulting.
 
----
-
-*Nothing invented. Everything reframed.*
