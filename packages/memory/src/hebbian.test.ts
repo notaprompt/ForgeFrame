@@ -84,6 +84,18 @@ describe('Store — Edge helpers for Hebbian', () => {
     expect(store.getEdgeBetween(m1.id, m2.id)).toBeNull();
   });
 
+  it('getEdgesBetween returns all edges between two memories', () => {
+    const m1 = store.create({ content: 'alpha' });
+    const m2 = store.create({ content: 'beta' });
+    store.createEdge({ sourceId: m1.id, targetId: m2.id, relationType: 'similar', weight: 0.8 });
+    store.createEdge({ sourceId: m1.id, targetId: m2.id, relationType: 'related', weight: 0.5 });
+
+    const edges = store.getEdgesBetween(m1.id, m2.id);
+    expect(edges).toHaveLength(2);
+    const types = edges.map((e) => e.relationType).sort();
+    expect(types).toEqual(['related', 'similar']);
+  });
+
   it('getAllEdgeWeights returns all edge weights', () => {
     const m1 = store.create({ content: 'alpha' });
     const m2 = store.create({ content: 'beta' });
@@ -196,6 +208,22 @@ describe('Hebbian Engine — LTP (co-retrieval strengthening)', () => {
     expect(store.getEdgeBetween(m1.id, m3.id)!.weight).toBeCloseTo(0.85);
   });
 
+  it('strengthens all edge types between same pair', () => {
+    const m1 = store.create({ content: 'alpha' });
+    const m2 = store.create({ content: 'beta' });
+    store.createEdge({ sourceId: m1.id, targetId: m2.id, relationType: 'similar', weight: 1.0 });
+    store.createEdge({ sourceId: m1.id, targetId: m2.id, relationType: 'related', weight: 0.5 });
+
+    const result = engine.hebbianUpdate([m1, m2]);
+
+    expect(result.strengthened).toHaveLength(2);
+    const edges = store.getEdgesBetween(m1.id, m2.id);
+    const similar = edges.find((e) => e.relationType === 'similar')!;
+    const related = edges.find((e) => e.relationType === 'related')!;
+    expect(similar.weight).toBe(1.05);
+    expect(related.weight).toBe(0.55);
+  });
+
   it('does nothing with 0 or 1 results', () => {
     const m1 = store.create({ content: 'alone' });
     const result = engine.hebbianUpdate([m1]);
@@ -221,6 +249,38 @@ describe('Hebbian Engine — LTP (co-retrieval strengthening)', () => {
     expect(edge).not.toBeNull();
     expect(edge!.weight).toBe(0.3);
     expect(edge!.relationType).toBe('similar');
+  });
+
+  it('co-retrieval counts persist across engine restarts', () => {
+    const m1 = store.create({ content: 'alpha' });
+    const m2 = store.create({ content: 'beta' });
+
+    // Two co-retrievals with first engine
+    engine.hebbianUpdate([m1, m2]);
+    engine.hebbianUpdate([m1, m2]);
+    expect(store.getEdgeBetween(m1.id, m2.id)).toBeNull();
+
+    // "Restart" — new engine, same store
+    const engine2 = new HebbianEngine(store);
+    engine2.hebbianUpdate([m1, m2]);
+
+    // Third co-retrieval should create the edge
+    const edge = store.getEdgeBetween(m1.id, m2.id);
+    expect(edge).not.toBeNull();
+    expect(edge!.weight).toBe(0.3);
+  });
+
+  it('cleans up co-retrieval metadata after edge creation', () => {
+    const m1 = store.create({ content: 'alpha' });
+    const m2 = store.create({ content: 'beta' });
+
+    engine.hebbianUpdate([m1, m2]);
+    engine.hebbianUpdate([m1, m2]);
+    engine.hebbianUpdate([m1, m2]);
+
+    // Edge created, metadata should be cleaned up
+    const anchor = m1.id < m2.id ? store.get(m1.id)! : store.get(m2.id)!;
+    expect(anchor.metadata.coRetrievals).toBeUndefined();
   });
 });
 
@@ -369,6 +429,24 @@ describe('Hebbian Engine — Retriever integration', () => {
 
   afterEach(() => {
     store.close();
+  });
+
+  it('semanticQuery() triggers Hebbian update on co-retrieved results', async () => {
+    const m1 = store.create({ content: 'sovereignty architecture patterns' });
+    const m2 = store.create({ content: 'sovereignty data principles' });
+    const edge = store.createEdge({
+      sourceId: m1.id,
+      targetId: m2.id,
+      relationType: 'similar',
+      weight: 1.0,
+    });
+
+    // No embedder — falls back to FTS, but Hebbian still fires
+    await retriever.semanticQuery({ text: 'sovereignty' });
+
+    const updated = store.getEdge(edge.id)!;
+    expect(updated.weight).toBe(1.05);
+    expect(updated.lastHebbianAt).not.toBeNull();
   });
 
   it('query() triggers Hebbian update on co-retrieved results', () => {

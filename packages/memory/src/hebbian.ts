@@ -24,8 +24,6 @@ const NEW_EDGE_WEIGHT = 0.3;
 export class HebbianEngine {
   private _store: MemoryStore;
   private _guardianMultiplier: number = 1.0;
-  /** Tracks co-retrieval count for pairs without edges. Key: sorted "id1:id2" */
-  private _coRetrievalCounts: Map<string, number> = new Map();
 
   constructor(store: MemoryStore) {
     this._store = store;
@@ -94,13 +92,11 @@ export class HebbianEngine {
         // Skip if either is constitutional
         if (this._isConstitutional(m1) || this._isConstitutional(m2)) continue;
 
-        const edge = this._store.getEdgeBetween(m1.id, m2.id);
+        const edges = this._store.getEdgesBetween(m1.id, m2.id);
 
-        if (!edge) {
-          // Track co-retrieval for unconnected pairs
-          const pairKey = [m1.id, m2.id].sort().join(':');
-          const count = (this._coRetrievalCounts.get(pairKey) ?? 0) + 1;
-          this._coRetrievalCounts.set(pairKey, count);
+        if (edges.length === 0) {
+          // Track co-retrieval in metadata (persists across restarts)
+          const count = this._incrementCoRetrieval(m1, m2);
 
           if (count >= CO_RETRIEVAL_THRESHOLD) {
             try {
@@ -116,7 +112,7 @@ export class HebbianEngine {
                 targetId: m2.id,
                 weight: NEW_EDGE_WEIGHT,
               });
-              this._coRetrievalCounts.delete(pairKey);
+              this._clearCoRetrieval(m1, m2);
             } catch {
               // unique constraint — edge already exists via different path
             }
@@ -124,13 +120,57 @@ export class HebbianEngine {
           continue;
         }
 
-        if (this._isRefractoryActive(edge, now)) continue;
+        // Strengthen ALL edges between the pair (different relation types)
+        for (const edge of edges) {
+          if (this._isRefractoryActive(edge, now)) continue;
 
-        const newWeight = Math.min(WEIGHT_CAP, edge.weight + increment);
-        this._store.updateEdgeWeight(edge.id, newWeight);
-        batch.strengthened.push({ edgeId: edge.id, weight: newWeight });
+          const newWeight = Math.min(WEIGHT_CAP, edge.weight + increment);
+          this._store.updateEdgeWeight(edge.id, newWeight);
+          batch.strengthened.push({ edgeId: edge.id, weight: newWeight });
+        }
       }
     }
+  }
+
+  /**
+   * Increment co-retrieval count for an unconnected pair.
+   * Stored in the lexicographically smaller memory's metadata.coRetrievals.
+   * Returns the new count.
+   */
+  private _incrementCoRetrieval(m1: Memory, m2: Memory): number {
+    const [anchor, peer] = m1.id < m2.id ? [m1, m2] : [m2, m1];
+    const fresh = this._store.get(anchor.id);
+    if (!fresh) return 0;
+
+    const coRetrievals: Record<string, number> = (fresh.metadata.coRetrievals as Record<string, number>) ?? {};
+    const count = (coRetrievals[peer.id] ?? 0) + 1;
+    coRetrievals[peer.id] = count;
+
+    this._store.update(anchor.id, {
+      metadata: { ...fresh.metadata, coRetrievals },
+    });
+    return count;
+  }
+
+  /**
+   * Clear co-retrieval count after edge creation.
+   */
+  private _clearCoRetrieval(m1: Memory, m2: Memory): void {
+    const [anchor, peer] = m1.id < m2.id ? [m1, m2] : [m2, m1];
+    const fresh = this._store.get(anchor.id);
+    if (!fresh) return;
+
+    const coRetrievals: Record<string, number> = (fresh.metadata.coRetrievals as Record<string, number>) ?? {};
+    delete coRetrievals[peer.id];
+
+    const newMeta = { ...fresh.metadata };
+    if (Object.keys(coRetrievals).length === 0) {
+      delete newMeta.coRetrievals;
+    } else {
+      newMeta.coRetrievals = coRetrievals;
+    }
+
+    this._store.update(anchor.id, { metadata: newMeta });
   }
 
   private _applyLTD(

@@ -603,6 +603,14 @@ export class MemoryStore {
     return row ? this._rowToEdge(row) : null;
   }
 
+  getEdgesBetween(memoryId1: string, memoryId2: string): MemoryEdge[] {
+    const rows = this._db.prepare(`
+      SELECT * FROM memory_edges
+      WHERE (source_id = ? AND target_id = ?) OR (source_id = ? AND target_id = ?)
+    `).all(memoryId1, memoryId2, memoryId2, memoryId1) as any[];
+    return rows.map((r) => this._rowToEdge(r));
+  }
+
   getAllEdgeWeights(): number[] {
     const rows = this._db.prepare('SELECT weight FROM memory_edges').all() as any[];
     return rows.map((r) => r.weight);
