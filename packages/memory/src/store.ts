@@ -588,6 +588,26 @@ export class MemoryStore {
     return result.changes > 0;
   }
 
+  updateEdgeWeight(edgeId: string, weight: number): void {
+    this._db.prepare(
+      'UPDATE memory_edges SET weight = ?, last_hebbian_at = ? WHERE id = ?'
+    ).run(weight, Date.now(), edgeId);
+  }
+
+  getEdgeBetween(memoryId1: string, memoryId2: string): MemoryEdge | null {
+    const row = this._db.prepare(`
+      SELECT * FROM memory_edges
+      WHERE (source_id = ? AND target_id = ?) OR (source_id = ? AND target_id = ?)
+      LIMIT 1
+    `).get(memoryId1, memoryId2, memoryId2, memoryId1) as any;
+    return row ? this._rowToEdge(row) : null;
+  }
+
+  getAllEdgeWeights(): number[] {
+    const rows = this._db.prepare('SELECT weight FROM memory_edges').all() as any[];
+    return rows.map((r) => r.weight);
+  }
+
   edgeCount(): number {
     const row = this._db.prepare('SELECT COUNT(*) as cnt FROM memory_edges').get() as any;
     return row.cnt;
