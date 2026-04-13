@@ -179,6 +179,13 @@ export interface EdgeCreateInput {
   metadata?: Record<string, unknown>;
 }
 
+export interface HebbianBatchUpdate {
+  strengthened: Array<{ edgeId: string; weight: number }>;
+  weakened: Array<{ edgeId: string; weight: number }>;
+  pruned: string[];
+  created: Array<{ edgeId: string; sourceId: string; targetId: string; weight: number }>;
+}
+
 // --- Guardian types ---
 
 export interface GuardianSignals {
