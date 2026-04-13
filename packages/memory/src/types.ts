@@ -167,6 +167,7 @@ export interface MemoryEdge {
   relationType: EdgeRelationType;
   weight: number;
   createdAt: number;
+  lastHebbianAt: number | null;
   metadata: Record<string, unknown>;
 }
 

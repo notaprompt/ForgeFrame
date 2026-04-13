@@ -23,7 +23,7 @@ export class MemoryStore {
     this._init();
   }
 
-  private static readonly SCHEMA_VERSION = 5;
+  private static readonly SCHEMA_VERSION = 6;
 
   private static readonly MIGRATIONS: Record<number, string> = {
     1: `
@@ -121,6 +121,9 @@ export class MemoryStore {
       ALTER TABLE memories ADD COLUMN superseded_at INTEGER;
       ALTER TABLE memories ADD COLUMN memory_type TEXT NOT NULL DEFAULT 'semantic';
       ALTER TABLE memories ADD COLUMN readiness REAL NOT NULL DEFAULT 0;
+    `,
+    6: `
+      ALTER TABLE memory_edges ADD COLUMN last_hebbian_at INTEGER;
     `,
   };
 
@@ -773,6 +776,7 @@ export class MemoryStore {
       relationType: row.relation_type,
       weight: row.weight,
       createdAt: row.created_at,
+      lastHebbianAt: row.last_hebbian_at ?? null,
       metadata: JSON.parse(row.metadata ?? '{}'),
     };
   }
