@@ -214,6 +214,34 @@ export interface ConsolidationResult {
   sourcesDecayed: string[];
 }
 
+// --- Contradiction types ---
+
+export type ContradictionResolutionAction =
+  | 'supersede-a-with-b'
+  | 'supersede-b-with-a'
+  | 'merge'
+  | 'keep-both';
+
+export interface ContradictionProposal {
+  id: string;
+  memoryAId: string;
+  memoryBId: string;
+  edgeId: string;
+  analysis: string;
+  isConstitutionalTension: boolean;
+  status: 'pending' | 'resolved';
+  resolution: ContradictionResolutionAction | null;
+  createdAt: number;
+  resolvedAt: number | null;
+}
+
+export interface ContradictionResult {
+  action: ContradictionResolutionAction;
+  survivingMemoryId: string | null;   // null for keep-both
+  mergedMemoryId: string | null;      // only for merge
+  removedEdgeId: string;              // the contradicts edge
+}
+
 // --- Guardian types ---
 
 export interface GuardianSignals {
