@@ -2,63 +2,60 @@ import { describe, it, expect } from 'vitest';
 import { GuardianComputer } from './guardian.js';
 import type { GuardianSignals } from './types.js';
 
+function calmSignals(): GuardianSignals {
+  return {
+    revisitWithoutAction: 0,
+    timeSinceLastArtifactExit: 0,
+    contradictionDensity: 0,
+    orphanRatio: 0,
+    decayVelocity: 0,
+    recursionDepth: 0,
+    hebbianImbalance: 0,
+  };
+}
+
 describe('GuardianComputer', () => {
   const guardian = new GuardianComputer();
 
-  it('returns calm for all-zero signals', () => {
-    const signals: GuardianSignals = {
-      revisitWithoutAction: 0,
-      timeSinceLastArtifactExit: 0,
-      contradictionDensity: 0,
-      orphanRatio: 0,
-      decayVelocity: 0,
-      recursionDepth: 0,
-    };
-    const temp = guardian.compute(signals);
-    expect(temp.value).toBeLessThan(0.1);
-    expect(temp.state).toBe('calm');
+  it('returns calm state for zero signals', () => {
+    const result = guardian.compute(calmSignals());
+    expect(result.state).toBe('calm');
+    expect(result.value).toBe(0);
   });
 
-  it('returns trapped for high signals', () => {
+  it('uses 7 signals with equal weight (1/7)', () => {
+    const signals = calmSignals();
+    signals.recursionDepth = 5; // normalizes to 1.0
+    const result = guardian.compute(signals);
+    expect(result.value).toBeCloseTo(1 / 7, 4);
+    expect(result.state).toBe('calm');
+  });
+
+  it('hebbianImbalance contributes to temperature', () => {
+    const signals = calmSignals();
+    signals.hebbianImbalance = 5.0; // normalizes to 1.0 (capped at 5.0)
+    const result = guardian.compute(signals);
+    expect(result.value).toBeCloseTo(1 / 7, 4);
+  });
+
+  it('all signals maxed = trapped', () => {
     const signals: GuardianSignals = {
       revisitWithoutAction: 10,
-      timeSinceLastArtifactExit: 30 * 24 * 60 * 60 * 1000,
-      contradictionDensity: 0.5,
-      orphanRatio: 0.8,
-      decayVelocity: 50,
-      recursionDepth: 8,
+      timeSinceLastArtifactExit: 14 * 24 * 60 * 60 * 1000,
+      contradictionDensity: 1.0,
+      orphanRatio: 1.0,
+      decayVelocity: 30,
+      recursionDepth: 5,
+      hebbianImbalance: 5.0,
     };
-    const temp = guardian.compute(signals);
-    expect(temp.value).toBeGreaterThan(0.6);
-    expect(temp.state).toBe('trapped');
+    const result = guardian.compute(signals);
+    expect(result.value).toBeCloseTo(1.0, 1);
+    expect(result.state).toBe('trapped');
   });
 
-  it('returns warm for moderate signals', () => {
-    const signals: GuardianSignals = {
-      revisitWithoutAction: 3,
-      timeSinceLastArtifactExit: 7 * 24 * 60 * 60 * 1000,
-      contradictionDensity: 0.1,
-      orphanRatio: 0.3,
-      decayVelocity: 10,
-      recursionDepth: 2,
-    };
-    const temp = guardian.compute(signals);
-    expect(temp.value).toBeGreaterThan(0.3);
-    expect(temp.value).toBeLessThan(0.6);
-    expect(temp.state).toBe('warm');
-  });
-
-  it('clamps value between 0 and 1', () => {
-    const extreme: GuardianSignals = {
-      revisitWithoutAction: 100,
-      timeSinceLastArtifactExit: 365 * 24 * 60 * 60 * 1000,
-      contradictionDensity: 1,
-      orphanRatio: 1,
-      decayVelocity: 500,
-      recursionDepth: 50,
-    };
-    const temp = guardian.compute(extreme);
-    expect(temp.value).toBeLessThanOrEqual(1);
-    expect(temp.value).toBeGreaterThanOrEqual(0);
+  it('hebbianMultiplier returns correct values per state', () => {
+    expect(GuardianComputer.hebbianMultiplier('calm')).toBe(1.0);
+    expect(GuardianComputer.hebbianMultiplier('warm')).toBe(0.5);
+    expect(GuardianComputer.hebbianMultiplier('trapped')).toBe(0.0);
   });
 });

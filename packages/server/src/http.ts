@@ -175,6 +175,7 @@ export function startHttpServer({ store, events, port, hostname }: HttpServerOpt
       orphanRatio: totalMemories > 0 ? store.orphanCount() / totalMemories : 0,
       decayVelocity: store.recentDecayCount(24 * 60 * 60 * 1000),
       recursionDepth: 0,
+      hebbianImbalance: 0,
     };
     const temp = guardian.compute(signals);
     return c.json(temp);

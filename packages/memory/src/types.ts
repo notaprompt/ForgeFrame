@@ -195,6 +195,7 @@ export interface GuardianSignals {
   orphanRatio: number;
   decayVelocity: number;
   recursionDepth: number;
+  hebbianImbalance: number;
 }
 
 export interface GuardianTemperature {

@@ -469,6 +469,7 @@ export function registerTools(
         orphanRatio: totalMemories > 0 ? store.orphanCount() / totalMemories : 0,
         decayVelocity: store.recentDecayCount(24 * 60 * 60 * 1000),
         recursionDepth: 0,
+        hebbianImbalance: 0,
       };
       const temp = guardian.compute(signals);
       return { content: [{ type: 'text' as const, text: JSON.stringify(temp) }] };

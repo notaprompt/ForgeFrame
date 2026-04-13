@@ -2,7 +2,6 @@ import type { GuardianSignals, GuardianTemperature } from './types.js';
 
 export class GuardianComputer {
   compute(signals: GuardianSignals): GuardianTemperature {
-    // Normalize each signal to 0-1
     const normalized = {
       revisit: Math.min(signals.revisitWithoutAction / 10, 1),
       timeSinceShip: Math.min(signals.timeSinceLastArtifactExit / (14 * 24 * 60 * 60 * 1000), 1),
@@ -10,17 +9,18 @@ export class GuardianComputer {
       orphans: Math.min(signals.orphanRatio, 1),
       decay: Math.min(signals.decayVelocity / 30, 1),
       recursion: Math.min(signals.recursionDepth / 5, 1),
+      hebbianImbalance: Math.min(signals.hebbianImbalance / 5.0, 1),
     };
 
-    // Equal weights — calibrate empirically after usage
-    const weight = 1 / 6;
+    const weight = 1 / 7;
     const raw =
       normalized.revisit * weight +
       normalized.timeSinceShip * weight +
       normalized.contradictions * weight +
       normalized.orphans * weight +
       normalized.decay * weight +
-      normalized.recursion * weight;
+      normalized.recursion * weight +
+      normalized.hebbianImbalance * weight;
 
     const value = Math.max(0, Math.min(1, raw));
 
@@ -30,5 +30,13 @@ export class GuardianComputer {
     else state = 'trapped';
 
     return { value, state, signals, computedAt: Date.now() };
+  }
+
+  static hebbianMultiplier(state: 'calm' | 'warm' | 'trapped'): number {
+    switch (state) {
+      case 'calm': return 1.0;
+      case 'warm': return 0.5;
+      case 'trapped': return 0.0;
+    }
   }
 }
