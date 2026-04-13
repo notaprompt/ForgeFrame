@@ -31,6 +31,17 @@ export class ConsolidationEngine {
     const components = this._store.getConnectedComponents();
     const now = Date.now();
 
+    // Load rejected proposals once, build set of cooled-down memory IDs
+    const rejected = this._store.listProposals('rejected');
+    const cooledDownIds = new Set<string>();
+    for (const proposal of rejected) {
+      if (proposal.rejectedUntil && proposal.rejectedUntil > now) {
+        for (const id of proposal.cluster.memoryIds) {
+          cooledDownIds.add(id);
+        }
+      }
+    }
+
     return components.filter((cluster) => {
       if (cluster.memoryIds.length < MIN_CLUSTER_SIZE) return false;
       if (cluster.avgWeight < MIN_AVG_WEIGHT) return false;
@@ -46,16 +57,8 @@ export class ConsolidationEngine {
       const depth = this._clusterDepth(cluster);
       if (depth >= MAX_DEPTH) return false;
 
-      // Rejection cooldown
-      const rejected = this._store.listProposals('rejected');
-      for (const proposal of rejected) {
-        if (proposal.rejectedUntil && proposal.rejectedUntil > now) {
-          const overlap = proposal.cluster.memoryIds.some((id) =>
-            cluster.memoryIds.includes(id)
-          );
-          if (overlap) return false;
-        }
-      }
+      // Rejection cooldown — O(1) lookup per memory instead of O(rejected * cluster)
+      if (cluster.memoryIds.some((id) => cooledDownIds.has(id))) return false;
 
       return true;
     });
@@ -209,7 +212,9 @@ Respond with a JSON object (no markdown fencing):
     suggestedTags: string[];
   } | null {
     try {
-      const jsonMatch = response.match(/\{[\s\S]*\}/);
+      // Strip <think>...</think> blocks (Qwen reasoning output)
+      const cleaned = response.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
+      const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
       if (!jsonMatch) return null;
 
       const parsed = JSON.parse(jsonMatch[0]);
