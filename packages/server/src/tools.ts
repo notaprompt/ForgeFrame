@@ -462,6 +462,10 @@ export function registerTools(
     {},
     async () => {
       const totalMemories = store.count();
+      const weights = store.getAllEdgeWeights();
+      const maxWeight = weights.length > 0 ? Math.max(...weights) : 0;
+      const meanWeight = weights.length > 0 ? weights.reduce((a, b) => a + b, 0) / weights.length : 1;
+      const hebbianImbalance = meanWeight > 0 ? maxWeight / meanWeight : 0;
       const signals = {
         revisitWithoutAction: 0,
         timeSinceLastArtifactExit: Date.now() - (store.lastShippedAt() ?? Date.now()),
@@ -469,7 +473,7 @@ export function registerTools(
         orphanRatio: totalMemories > 0 ? store.orphanCount() / totalMemories : 0,
         decayVelocity: store.recentDecayCount(24 * 60 * 60 * 1000),
         recursionDepth: 0,
-        hebbianImbalance: 0,
+        hebbianImbalance,
       };
       const temp = guardian.compute(signals);
       return { content: [{ type: 'text' as const, text: JSON.stringify(temp) }] };
