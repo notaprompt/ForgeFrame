@@ -364,7 +364,7 @@ describe('Hebbian Engine — Retriever integration', () => {
 
   beforeEach(() => {
     store = new MemoryStore({ dbPath: ':memory:' });
-    retriever = new MemoryRetriever(store, null, store);
+    retriever = new MemoryRetriever(store, null, { hebbian: true });
   });
 
   afterEach(() => {

@@ -39,7 +39,7 @@ export function createServer(overrides?: Partial<ServerConfig>): ServerInstance 
     ollamaUrl: config.ollamaUrl,
     model: config.embeddingModel,
   });
-  const retriever = new MemoryRetriever(store, embedder);
+  const retriever = new MemoryRetriever(store, embedder, { hebbian: true });
   const provenance = new ProvenanceLogger(config.provenancePath);
   const events = new ServerEvents();
 

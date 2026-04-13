@@ -15,10 +15,10 @@ export class MemoryRetriever {
   private _embedder: Embedder | null;
   private _hebbian: HebbianEngine | null;
 
-  constructor(store: MemoryStore, embedder?: Embedder | null, hebbianStore?: MemoryStore) {
+  constructor(store: MemoryStore, embedder?: Embedder | null, opts?: { hebbian?: boolean }) {
     this._store = store;
     this._embedder = embedder ?? null;
-    this._hebbian = hebbianStore ? new HebbianEngine(hebbianStore) : null;
+    this._hebbian = opts?.hebbian ? new HebbianEngine(store) : null;
   }
 
   setGuardianMultiplier(multiplier: number): void {
