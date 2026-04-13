@@ -4,8 +4,8 @@
 
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import type { MemoryStore, MemoryRetriever, Session, Embedder } from '@forgeframe/memory';
-import { GuardianComputer } from '@forgeframe/memory';
+import type { MemoryStore, MemoryRetriever, Session, Embedder, Generator } from '@forgeframe/memory';
+import { GuardianComputer, ConsolidationEngine } from '@forgeframe/memory';
 import type { ProvenanceLogger } from './provenance.js';
 import type { ServerEvents } from './events.js';
 import type { ServerConfig } from './config.js';
@@ -31,6 +31,7 @@ export function registerTools(
   store: MemoryStore,
   retriever: MemoryRetriever,
   embedder: Embedder | null,
+  generator: Generator,
   provenance: ProvenanceLogger,
   events: ServerEvents,
   config: ServerConfig,
@@ -38,6 +39,7 @@ export function registerTools(
 ): void {
   const sessionRef = { current: session };
   const guardian = new GuardianComputer();
+  const consolidation = new ConsolidationEngine(store, generator);
 
   server.tool(
     'memory_save',
@@ -477,6 +479,75 @@ export function registerTools(
       };
       const temp = guardian.compute(signals);
       return { content: [{ type: 'text' as const, text: JSON.stringify(temp) }] };
+    },
+  );
+
+  server.tool(
+    'consolidation_scan',
+    'Scan for memory clusters ready for consolidation. Returns candidates (avg weight > 1.2, size >= 5). Pass propose=true to generate proposals via local LLM.',
+    {
+      propose: z.boolean().optional().describe('If true, generate consolidation proposals for each candidate via local LLM'),
+    },
+    async ({ propose }) => {
+      try {
+        const candidates = consolidation.findCandidateClusters();
+        if (!propose) {
+          return toolResult({ candidates, count: candidates.length });
+        }
+
+        const proposals = [];
+        for (const cluster of candidates) {
+          const proposal = await consolidation.propose(cluster);
+          if (proposal) {
+            proposals.push(proposal);
+            events.emit('consolidation:proposed', proposal);
+          }
+        }
+
+        return toolResult({ candidates: candidates.length, proposals, proposalCount: proposals.length });
+      } catch (err) {
+        return toolError(err);
+      }
+    },
+  );
+
+  server.tool(
+    'consolidation_approve',
+    'Approve a consolidation proposal. Creates consolidated memory, migrates edges, decays sources.',
+    {
+      proposalId: z.string().describe('Proposal ID to approve'),
+    },
+    async ({ proposalId }) => {
+      try {
+        const result = consolidation.approve(proposalId);
+        if (!result) {
+          return toolResult({ error: 'Proposal not found or not pending' });
+        }
+        events.emit('consolidation:complete', result);
+        return toolResult(result);
+      } catch (err) {
+        return toolError(err);
+      }
+    },
+  );
+
+  server.tool(
+    'consolidation_reject',
+    'Reject a consolidation proposal. Sets 7-day cooldown.',
+    {
+      proposalId: z.string().describe('Proposal ID to reject'),
+    },
+    async ({ proposalId }) => {
+      try {
+        const proposal = consolidation.reject(proposalId);
+        if (!proposal) {
+          return toolResult({ error: 'Proposal not found or not pending' });
+        }
+        events.emit('consolidation:rejected', proposal);
+        return toolResult(proposal);
+      } catch (err) {
+        return toolError(err);
+      }
     },
   );
 }

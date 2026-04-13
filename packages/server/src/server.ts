@@ -5,8 +5,8 @@
 import { join } from 'path';
 import { homedir } from 'os';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { MemoryStore, MemoryRetriever, OllamaEmbedder } from '@forgeframe/memory';
-import type { Session, Embedder } from '@forgeframe/memory';
+import { MemoryStore, MemoryRetriever, OllamaEmbedder, OllamaGenerator } from '@forgeframe/memory';
+import type { Session, Embedder, Generator } from '@forgeframe/memory';
 import { MEMORY_ORGAN_MANIFEST, createMemoryOrganLifecycle } from '@forgeframe/memory';
 import { OrganRegistryImpl, detectResourceBudget, createConsoleLogger } from '@forgeframe/core';
 import type { LoraTrainingRun } from '@forgeframe/core';
@@ -27,6 +27,7 @@ export interface ServerInstance {
   events: ServerEvents;
   session: Session;
   embedder: Embedder | null;
+  generator: Generator;
   registry: OrganRegistryImpl;
   shutdown: () => void;
 }
@@ -38,6 +39,10 @@ export function createServer(overrides?: Partial<ServerConfig>): ServerInstance 
   const embedder = new OllamaEmbedder({
     ollamaUrl: config.ollamaUrl,
     model: config.embeddingModel,
+  });
+  const generator = new OllamaGenerator({
+    ollamaUrl: config.ollamaUrl,
+    model: config.generatorModel ?? 'qwen3:32b',
   });
   const retriever = new MemoryRetriever(store, embedder, { hebbian: true });
   const provenance = new ProvenanceLogger(config.provenancePath);
@@ -57,7 +62,7 @@ export function createServer(overrides?: Partial<ServerConfig>): ServerInstance 
     { capabilities: { logging: {} } },
   );
 
-  registerTools(server, store, retriever, embedder, provenance, events, config, session);
+  registerTools(server, store, retriever, embedder, generator, provenance, events, config, session);
   registerResources(server, store, config);
   registerPrompts(server);
 
@@ -184,7 +189,7 @@ export function createServer(overrides?: Partial<ServerConfig>): ServerInstance 
     store.close();
   }
 
-  return { server, store, events, session, embedder, registry, shutdown };
+  return { server, store, events, session, embedder, generator, registry, shutdown };
 }
 
 /**

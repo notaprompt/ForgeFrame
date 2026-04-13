@@ -23,6 +23,9 @@ export interface ServerConfig {
   distilleryDbPath?: string;
   distilleryPollMs?: number;
 
+  // Consolidation
+  generatorModel?: string;
+
   // LoRA pipeline
   loraBaseModel?: string;
   loraOutputDir?: string;
@@ -86,6 +89,9 @@ export function loadConfig(overrides: Partial<ServerConfig> = {}): ServerConfig 
       ?? undefined,
     distilleryPollMs: overrides.distilleryPollMs
       ?? (env('DISTILLERY_POLL') ? parseInt(env('DISTILLERY_POLL')!, 10) : undefined),
+    generatorModel: overrides.generatorModel
+      ?? env('GENERATOR_MODEL')
+      ?? undefined,
     loraBaseModel: overrides.loraBaseModel
       ?? env('LORA_BASE_MODEL')
       ?? undefined,

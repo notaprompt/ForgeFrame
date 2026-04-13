@@ -33,6 +33,7 @@ if (httpPort) {
       store: instance.store,
       events: instance.events,
       port: httpPort,
+      generator: instance.generator,
     });
   }
 }

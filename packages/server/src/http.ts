@@ -9,8 +9,8 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { streamSSE } from 'hono/streaming';
 import { serve } from '@hono/node-server';
-import { GuardianComputer } from '@forgeframe/memory';
-import type { GuardianSignals, MemoryEdge, MemoryStore } from '@forgeframe/memory';
+import { GuardianComputer, ConsolidationEngine } from '@forgeframe/memory';
+import type { GuardianSignals, MemoryEdge, MemoryStore, Generator } from '@forgeframe/memory';
 import type { ServerEvents } from './events.js';
 import { bearerAuth } from './auth.js';
 import { loadToken } from './token.js';
@@ -20,9 +20,10 @@ export interface HttpServerOptions {
   events: ServerEvents;
   port: number;
   hostname?: string;
+  generator?: Generator;
 }
 
-export function startHttpServer({ store, events, port, hostname }: HttpServerOptions) {
+export function startHttpServer({ store, events, port, hostname, generator }: HttpServerOptions) {
   const app = new Hono();
   const guardian = new GuardianComputer();
 
@@ -185,6 +186,57 @@ export function startHttpServer({ store, events, port, hostname }: HttpServerOpt
     return c.json(temp);
   });
 
+  // --- Consolidation endpoints ---
+
+  app.get('/api/consolidation/proposals', (c) => {
+    const status = c.req.query('status') as 'pending' | 'approved' | 'rejected' | undefined;
+    const proposals = store.listProposals(status);
+    return c.json(proposals);
+  });
+
+  app.get('/api/consolidation/proposals/:id', (c) => {
+    const proposal = store.getProposal(c.req.param('id'));
+    if (!proposal) return c.json({ error: 'Not found' }, 404);
+    return c.json(proposal);
+  });
+
+  app.post('/api/consolidation/scan', async (c) => {
+    if (!generator) return c.json({ error: 'Generator not configured' }, 503);
+    const body = await c.req.json<{ propose?: boolean }>().catch(() => ({ propose: undefined }));
+    const engine = new ConsolidationEngine(store, generator);
+    const candidates = engine.findCandidateClusters();
+    if (!body.propose) {
+      return c.json({ candidates, count: candidates.length });
+    }
+    const proposals = [];
+    for (const cluster of candidates) {
+      const proposal = await engine.propose(cluster);
+      if (proposal) {
+        proposals.push(proposal);
+        events.emit('consolidation:proposed', proposal);
+      }
+    }
+    return c.json({ candidates: candidates.length, proposals, proposalCount: proposals.length });
+  });
+
+  app.post('/api/consolidation/proposals/:id/approve', (c) => {
+    if (!generator) return c.json({ error: 'Generator not configured' }, 503);
+    const engine = new ConsolidationEngine(store, generator);
+    const result = engine.approve(c.req.param('id'));
+    if (!result) return c.json({ error: 'Proposal not found or not pending' }, 404);
+    events.emit('consolidation:complete', result);
+    return c.json(result);
+  });
+
+  app.post('/api/consolidation/proposals/:id/reject', (c) => {
+    if (!generator) return c.json({ error: 'Generator not configured' }, 503);
+    const engine = new ConsolidationEngine(store, generator);
+    const proposal = engine.reject(c.req.param('id'));
+    if (!proposal) return c.json({ error: 'Proposal not found or not pending' }, 404);
+    events.emit('consolidation:rejected', proposal);
+    return c.json(proposal);
+  });
+
   // --- Catalog endpoint (triggers background enrichment) ---
 
   app.post('/api/catalog/start', async (c) => {
@@ -304,6 +356,27 @@ export function startHttpServer({ store, events, port, hostname }: HttpServerOpt
         stream.writeSSE({
           event: 'guardian:update',
           data: JSON.stringify(temp),
+        });
+      });
+
+      on('consolidation:proposed', (proposal) => {
+        stream.writeSSE({
+          event: 'consolidation:proposed',
+          data: JSON.stringify(proposal),
+        });
+      });
+
+      on('consolidation:complete', (result) => {
+        stream.writeSSE({
+          event: 'consolidation:complete',
+          data: JSON.stringify(result),
+        });
+      });
+
+      on('consolidation:rejected', (proposal) => {
+        stream.writeSSE({
+          event: 'consolidation:rejected',
+          data: JSON.stringify(proposal),
         });
       });
 
