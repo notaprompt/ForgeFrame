@@ -16,8 +16,8 @@ describe('findDuplicate', () => {
   });
 
   it('returns the duplicate when content is near-identical', () => {
-    const original = store.create({ content: 'ForgeFrame uses SQLite for storage' });
-    const result = findDuplicate(store, 'ForgeFrame uses SQLite for its storage backend');
+    const original = store.create({ content: 'ForgeFrame uses SQLite for persistent memory storage' });
+    const result = findDuplicate(store, 'ForgeFrame uses SQLite for persistent memory storage backend');
     expect(result).not.toBeNull();
     expect(result!.id).toBe(original.id);
   });

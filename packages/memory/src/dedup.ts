@@ -9,7 +9,7 @@ import type { Memory } from './types.js';
 export function findDuplicate(
   store: MemoryStore,
   content: string,
-  threshold = 0.7,
+  threshold = 0.85,
 ): Memory | null {
   // Extract key terms for search
   const terms = content
