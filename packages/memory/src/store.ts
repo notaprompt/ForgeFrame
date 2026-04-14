@@ -23,7 +23,7 @@ export class MemoryStore {
     this._init();
   }
 
-  private static readonly SCHEMA_VERSION = 9;
+  private static readonly SCHEMA_VERSION = 10;
 
   private static readonly MIGRATIONS: Record<number, string> = {
     1: `
@@ -162,6 +162,9 @@ export class MemoryStore {
       ALTER TABLE memories ADD COLUMN valence TEXT NOT NULL DEFAULT 'neutral';
       UPDATE memories SET valence = 'grounding'
         WHERE tags LIKE '%"principle"%' OR tags LIKE '%"voice"%';
+    `,
+    10: `
+      ALTER TABLE memories ADD COLUMN last_hindsight_review INTEGER;
     `,
   };
 
@@ -755,6 +758,12 @@ export class MemoryStore {
     return rows.map((r) => this._rowToMemory(r));
   }
 
+  setHindsightReviewed(id: string): void {
+    this._db.prepare(
+      'UPDATE memories SET last_hindsight_review = ? WHERE id = ?'
+    ).run(Date.now(), id);
+  }
+
   setReadiness(memoryId: string, readiness: number): void {
     const clamped = Math.max(0, Math.min(1, readiness));
     this._db.prepare('UPDATE memories SET readiness = ? WHERE id = ?').run(clamped, memoryId);
@@ -1116,6 +1125,7 @@ export class MemoryStore {
       memoryType: row.memory_type ?? 'semantic',
       readiness: row.readiness ?? 0,
       valence: row.valence ?? 'neutral',
+      lastHindsightReview: row.last_hindsight_review ?? null,
     };
   }
 

@@ -64,6 +64,7 @@ export interface Memory {
   memoryType: MemoryType;
   readiness: number;
   valence: Valence;
+  lastHindsightReview: number | null;
 }
 
 export interface MemoryCreateInput {
