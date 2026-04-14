@@ -11,7 +11,7 @@
 import type { MemoryStore } from './store.js';
 import type { HebbianEngine } from './hebbian.js';
 import type { ConsolidationEngine } from './consolidation.js';
-import type { OllamaGenerator } from './generator.js';
+import type { Generator } from './generator.js';
 import type { Memory } from './types.js';
 import { findDuplicate } from './dedup.js';
 import { classifyValence } from './valence.js';
@@ -33,7 +33,7 @@ export class NremPhase {
     private store: MemoryStore,
     private hebbian: HebbianEngine,
     private consolidation: ConsolidationEngine,
-    private generator: OllamaGenerator | null = null,
+    private generator: Generator | null = null,
   ) {}
 
   async run(): Promise<NremResult> {

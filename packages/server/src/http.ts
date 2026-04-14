@@ -9,8 +9,8 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { streamSSE } from 'hono/streaming';
 import { serve } from '@hono/node-server';
-import { GuardianComputer, ConsolidationEngine, ContradictionEngine } from '@forgeframe/memory';
-import type { GuardianSignals, MemoryEdge, MemoryStore, Generator } from '@forgeframe/memory';
+import { GuardianComputer, ConsolidationEngine, ContradictionEngine, HebbianEngine, NremPhase, computeSleepPressure, selectSeeds, applySeedGrade, findHindsightCandidates, applyHindsightResponse, findTensionCandidates, RemPhase } from '@forgeframe/memory';
+import type { GuardianSignals, MemoryEdge, MemoryStore, Generator, SeedGrade, HindsightResponse } from '@forgeframe/memory';
 import type { ServerEvents } from './events.js';
 import { bearerAuth } from './auth.js';
 import { loadToken } from './token.js';
@@ -34,7 +34,7 @@ export function startHttpServer({ store, events, port, hostname, generator }: Ht
 
   app.use('*', cors({
     origin: allowedOrigins,
-    allowMethods: ['GET', 'POST'],
+    allowMethods: ['GET', 'POST', 'PUT', 'DELETE'],
     maxAge: 86400,
   }));
 
@@ -168,20 +168,7 @@ export function startHttpServer({ store, events, port, hostname, generator }: Ht
   // --- Guardian ---
 
   app.get('/api/guardian/temperature', (c) => {
-    const totalMemories = store.count();
-    const weights = store.getAllEdgeWeights();
-    const maxWeight = weights.length > 0 ? Math.max(...weights) : 0;
-    const meanWeight = weights.length > 0 ? weights.reduce((a, b) => a + b, 0) / weights.length : 1;
-    const hebbianImbalance = meanWeight > 0 ? maxWeight / meanWeight : 0;
-    const signals: GuardianSignals = {
-      revisitWithoutAction: 0,
-      timeSinceLastArtifactExit: Date.now() - (store.lastShippedAt() ?? Date.now()),
-      contradictionDensity: totalMemories > 0 ? store.contradictionCount() / totalMemories : 0,
-      orphanRatio: totalMemories > 0 ? store.orphanCount() / totalMemories : 0,
-      decayVelocity: store.recentDecayCount(24 * 60 * 60 * 1000),
-      recursionDepth: 0,
-      hebbianImbalance,
-    };
+    const signals = buildGuardianSignals(store);
     const temp = guardian.compute(signals);
     return c.json(temp);
   });
@@ -272,6 +259,221 @@ export function startHttpServer({ store, events, port, hostname, generator }: Ht
     if (!result) return c.json({ error: 'Proposal not found, not pending, or is a constitutional tension' }, 404);
     events.emit('contradiction:resolved', result);
     return c.json(result);
+  });
+
+  // --- Dream control endpoints ---
+
+  app.get('/api/dream/pressure', (c) => {
+    return c.json(computeSleepPressure(store));
+  });
+
+  app.post('/api/dream/trigger', async (c) => {
+    const pressure = computeSleepPressure(store);
+    const guardianTemp = guardian.compute(buildGuardianSignals(store));
+    if (guardianTemp.state === 'trapped') {
+      return c.json({ error: 'Guardian is trapped — dreaming suppressed' }, 409);
+    }
+
+    if (pressure.recommendation === 'nrem' || pressure.recommendation === 'full') {
+      const nrem = new NremPhase(store, new HebbianEngine(store), new ConsolidationEngine(store, generator!), generator ?? null);
+      const nremResult = await nrem.run();
+
+      if (pressure.recommendation === 'full') {
+        const rem = new RemPhase(store, generator ?? null);
+        const remResult = await rem.run(pressure.score);
+        return c.json({ phase: 'full', nrem: nremResult, rem: remResult });
+      }
+
+      return c.json({ phase: 'nrem', nrem: nremResult });
+    }
+
+    return c.json({ phase: 'sleep', message: 'Pressure below threshold', pressure });
+  });
+
+  let dreamSettings = { suppressDreaming: false, nremOnly: false, nremThreshold: 20, remThreshold: 50 };
+
+  app.get('/api/dream/settings', (c) => {
+    return c.json(dreamSettings);
+  });
+
+  app.put('/api/dream/settings', async (c) => {
+    const body = await c.req.json();
+    if (body.suppressDreaming !== undefined) dreamSettings.suppressDreaming = !!body.suppressDreaming;
+    if (body.nremOnly !== undefined) dreamSettings.nremOnly = !!body.nremOnly;
+    if (typeof body.nremThreshold === 'number') dreamSettings.nremThreshold = body.nremThreshold;
+    if (typeof body.remThreshold === 'number') dreamSettings.remThreshold = body.remThreshold;
+    return c.json(dreamSettings);
+  });
+
+  app.get('/api/dream/journal/latest', (c) => {
+    const journals = store.listByTag('dream-journal', 1);
+    if (journals.length === 0) return c.json(null);
+    return c.json(sanitize(journals[0]));
+  });
+
+  app.get('/api/dream/seeds/pending', (c) => {
+    const seeds = selectSeeds(store, 5);
+    return c.json(seeds);
+  });
+
+  app.post('/api/dream/seeds/:id/grade', async (c) => {
+    const body = await c.req.json<{ grade: string; seedMemoryIds: string[] }>();
+    const validGrades = ['fire', 'shrug', 'miss'];
+    if (!validGrades.includes(body.grade)) {
+      return c.json({ error: 'Invalid grade. Must be: fire, shrug, miss' }, 400);
+    }
+    if (!body.seedMemoryIds || body.seedMemoryIds.length < 2) {
+      return c.json({ error: 'seedMemoryIds must contain at least 2 memory IDs' }, 400);
+    }
+    const memories = body.seedMemoryIds.map(id => store.get(id)).filter(Boolean);
+    if (memories.length < 2) {
+      return c.json({ error: 'One or more memories not found' }, 404);
+    }
+    const seed = { id: c.req.param('id'), memories: memories as any[], clusterIds: [], hasCharged: false, createdAt: Date.now() };
+    const result = applySeedGrade(store, seed, body.grade as SeedGrade);
+    return c.json(result);
+  });
+
+  app.get('/api/dream/hindsight/pending', (c) => {
+    const candidates = findHindsightCandidates(store, 3);
+    return c.json(candidates.map(c => ({
+      memoryId: c.memory.id,
+      content: c.memory.content,
+      tags: c.memory.tags,
+      avgEdgeWeight: c.avgEdgeWeight,
+      edgeCount: c.edgeCount,
+      scrutinyScore: c.scrutinyScore,
+      ageInDays: Math.round(c.ageInDays),
+      valence: c.memory.valence,
+    })));
+  });
+
+  app.post('/api/dream/hindsight/:id/respond', async (c) => {
+    const memoryId = c.req.param('id');
+    const body = await c.req.json<{ response: string; revisedContent?: string }>();
+    const validResponses = ['keep', 'weaken', 'revise'];
+    if (!validResponses.includes(body.response)) {
+      return c.json({ error: 'Invalid response. Must be: keep, weaken, revise' }, 400);
+    }
+    const candidates = findHindsightCandidates(store, 10);
+    const candidate = candidates.find(c => c.memory.id === memoryId);
+    if (!candidate) {
+      return c.json({ error: 'Memory is not a hindsight candidate' }, 404);
+    }
+    const result = applyHindsightResponse(store, candidate, body.response as HindsightResponse, body.revisedContent);
+    return c.json(result);
+  });
+
+  app.get('/api/dream/tensions', (c) => {
+    const tensions = findTensionCandidates(store, 10);
+    return c.json(tensions.map(t => ({
+      memoryAId: t.memoryA.id,
+      memoryAContent: t.memoryA.content,
+      memoryAAvgWeight: t.avgWeightA,
+      memoryBId: t.memoryB.id,
+      memoryBContent: t.memoryB.content,
+      memoryBAvgWeight: t.avgWeightB,
+      tagOverlap: t.tagOverlap,
+      tensionScore: t.tensionScore,
+    })));
+  });
+
+  // --- Hermes control endpoints ---
+
+  let hermesState = { status: 'idle' as 'idle' | 'running' | 'paused', lastCycleAt: null as number | null };
+
+  app.get('/api/hermes/status', (c) => {
+    return c.json(hermesState);
+  });
+
+  app.post('/api/hermes/pause', (c) => {
+    hermesState.status = 'paused';
+    return c.json(hermesState);
+  });
+
+  app.post('/api/hermes/resume', (c) => {
+    hermesState.status = 'idle';
+    return c.json(hermesState);
+  });
+
+  app.post('/api/hermes/cycle', (c) => {
+    // Stub: Hermes cycle trigger. Actual Hermes integration runs externally.
+    if (hermesState.status === 'paused') {
+      return c.json({ error: 'Hermes is paused' }, 409);
+    }
+    hermesState.lastCycleAt = Date.now();
+    return c.json({ triggered: true, ...hermesState });
+  });
+
+  // --- Guardian control endpoints ---
+
+  app.get('/api/guardian/signals', (c) => {
+    const signals = buildGuardianSignals(store);
+    const temp = guardian.compute(signals);
+    return c.json({ temperature: temp, signals });
+  });
+
+  let signalOverrides: Partial<GuardianSignals> = {};
+
+  app.put('/api/guardian/override', async (c) => {
+    const body = await c.req.json<Partial<GuardianSignals>>();
+    signalOverrides = { ...signalOverrides, ...body };
+    const signals = { ...buildGuardianSignals(store), ...signalOverrides };
+    const temp = guardian.compute(signals);
+    return c.json({ temperature: temp, signals, overrides: signalOverrides });
+  });
+
+  app.delete('/api/guardian/override', (c) => {
+    signalOverrides = {};
+    return c.json({ cleared: true });
+  });
+
+  app.get('/api/guardian/idle', (c) => {
+    const pressure = computeSleepPressure(store);
+    return c.json({
+      pressure,
+      memoryCount: store.count(),
+      orphanCount: store.orphanCount(),
+    });
+  });
+
+  // --- Hebbian control endpoints ---
+
+  let hebbianFrozen = false;
+  let hebbianRates = { ltp: 0.05, ltd: 0.02 };
+
+  app.get('/api/hebbian/weights', (c) => {
+    const weights = store.getAllEdgeWeights();
+    if (weights.length === 0) {
+      return c.json({ count: 0, min: 0, max: 0, mean: 0, median: 0 });
+    }
+    weights.sort((a, b) => a - b);
+    const sum = weights.reduce((a, b) => a + b, 0);
+    return c.json({
+      count: weights.length,
+      min: weights[0],
+      max: weights[weights.length - 1],
+      mean: Math.round((sum / weights.length) * 100) / 100,
+      median: weights[Math.floor(weights.length / 2)],
+      frozen: hebbianFrozen,
+    });
+  });
+
+  app.put('/api/hebbian/freeze', async (c) => {
+    const body = await c.req.json<{ frozen: boolean }>();
+    hebbianFrozen = !!body.frozen;
+    return c.json({ frozen: hebbianFrozen });
+  });
+
+  app.put('/api/hebbian/rates', async (c) => {
+    const body = await c.req.json<{ ltp?: number; ltd?: number }>();
+    if (typeof body.ltp === 'number') hebbianRates.ltp = body.ltp;
+    if (typeof body.ltd === 'number') hebbianRates.ltd = body.ltd;
+    return c.json(hebbianRates);
+  });
+
+  app.get('/api/hebbian/rates', (c) => {
+    return c.json({ ...hebbianRates, frozen: hebbianFrozen });
   });
 
   // --- Catalog endpoint (triggers background enrichment) ---
@@ -499,6 +701,24 @@ export function startHttpServer({ store, events, port, hostname, generator }: Ht
   process.stderr.write(`ForgeFrame viewer: http://${hostname ?? '127.0.0.1'}:${port}\n`);
 
   return server;
+}
+
+/** Build Guardian signals from current store state. */
+function buildGuardianSignals(store: MemoryStore): GuardianSignals {
+  const totalMemories = store.count();
+  const weights = store.getAllEdgeWeights();
+  const maxWeight = weights.length > 0 ? Math.max(...weights) : 0;
+  const meanWeight = weights.length > 0 ? weights.reduce((a, b) => a + b, 0) / weights.length : 1;
+  const hebbianImbalance = meanWeight > 0 ? maxWeight / meanWeight : 0;
+  return {
+    revisitWithoutAction: 0,
+    timeSinceLastArtifactExit: Date.now() - (store.lastShippedAt() ?? Date.now()),
+    contradictionDensity: totalMemories > 0 ? store.contradictionCount() / totalMemories : 0,
+    orphanRatio: totalMemories > 0 ? store.orphanCount() / totalMemories : 0,
+    decayVelocity: store.recentDecayCount(24 * 60 * 60 * 1000),
+    recursionDepth: 0,
+    hebbianImbalance,
+  };
 }
 
 /** Strip embeddings from API responses (large binary data) */

@@ -5,7 +5,7 @@
  * Constitutional memories (principle/voice tags) always get grounding.
  */
 
-import type { OllamaGenerator } from './generator.js';
+import type { Generator } from './generator.js';
 import type { Valence } from './types.js';
 
 const CLASSIFY_PROMPT = `Classify this memory's emotional valence as exactly one word:
@@ -19,7 +19,7 @@ Respond with exactly one word: charged, neutral, or grounding`;
 
 export async function classifyValence(
   content: string,
-  generator: OllamaGenerator | null,
+  generator: Generator | null,
   tags: string[] = [],
 ): Promise<Valence> {
   // Constitutional tags always get grounding -- no LLM needed
