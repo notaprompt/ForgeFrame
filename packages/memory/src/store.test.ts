@@ -44,6 +44,16 @@ describe('MemoryStore', () => {
       expect(mem.strength).toBe(1.0);
       expect(mem.accessCount).toBe(0);
     });
+
+    it('stores and retrieves valence', () => {
+      const mem = store.create({ content: 'test', valence: 'charged' });
+      expect(store.get(mem.id)!.valence).toBe('charged');
+    });
+
+    it('principle-tagged memories always have grounding valence', () => {
+      const mem = store.create({ content: 'test', tags: ['principle'], valence: 'charged' });
+      expect(store.get(mem.id)!.valence).toBe('grounding');
+    });
   });
 
   describe('get', () => {

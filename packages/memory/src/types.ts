@@ -31,6 +31,9 @@ export const CONSTITUTIONAL_TAGS: readonly TrimTag[] = ['principle', 'voice'] as
 /** Tags eligible for memory transformation (LoRA fine-tuning). Classification ceiling. */
 export const LORA_ELIGIBLE_TAGS: readonly TrimTag[] = ['principle', 'voice', 'pattern', 'skill'] as const;
 
+export const VALENCE_STATES = ['charged', 'neutral', 'grounding'] as const;
+export type Valence = (typeof VALENCE_STATES)[number];
+
 export const MEMORY_TYPES = ['semantic', 'episodic', 'principle', 'artifact'] as const;
 export type MemoryType = typeof MEMORY_TYPES[number];
 
@@ -60,6 +63,7 @@ export interface Memory {
   supersededAt?: number;
   memoryType: MemoryType;
   readiness: number;
+  valence: Valence;
 }
 
 export interface MemoryCreateInput {
@@ -68,6 +72,7 @@ export interface MemoryCreateInput {
   sessionId?: string;
   tags?: string[];
   metadata?: Record<string, unknown>;
+  valence?: Valence;
 }
 
 export interface MemoryUpdateInput {

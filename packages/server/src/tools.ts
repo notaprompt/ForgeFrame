@@ -49,8 +49,10 @@ export function registerTools(
       content: z.string().describe('The content to remember'),
       tags: z.array(z.string()).optional().describe('Tags for categorization'),
       metadata: z.record(z.unknown()).optional().describe('Arbitrary metadata'),
+      valence: z.enum(['charged', 'neutral', 'grounding']).optional()
+        .describe('Emotional valence (auto-classified if omitted)'),
     },
-    async ({ content, tags, metadata }) => {
+    async ({ content, tags, metadata, valence }) => {
       try {
         let embedding: number[] | undefined;
         if (embedder) {
@@ -64,6 +66,7 @@ export function registerTools(
           tags: tags ?? [],
           metadata: metadata ?? {},
           sessionId: sessionRef.current.id,
+          valence,
         });
 
         provenance.log({

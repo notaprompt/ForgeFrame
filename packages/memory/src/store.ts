@@ -7,7 +7,7 @@
 
 import Database from 'better-sqlite3';
 import { randomUUID } from 'crypto';
-import type { Memory, MemoryCreateInput, MemoryUpdateInput, MemoryConfig, ReconsolidationOptions, Session, SessionCreateInput, SessionListOptions, DistilledArtifact, DistilledArtifactInput, MemoryEdge, EdgeCreateInput, ConsolidationCluster, ConsolidationProposal, ContradictionProposal } from './types.js';
+import type { Memory, MemoryCreateInput, MemoryUpdateInput, MemoryConfig, ReconsolidationOptions, Session, SessionCreateInput, SessionListOptions, DistilledArtifact, DistilledArtifactInput, MemoryEdge, EdgeCreateInput, ConsolidationCluster, ConsolidationProposal, ContradictionProposal, Valence } from './types.js';
 import { DEFAULT_CONFIG, TRIM_TAGS, CONSTITUTIONAL_TAGS, MEMORY_TYPE_STABILITY_MULTIPLIER } from './types.js';
 
 export class MemoryStore {
@@ -23,7 +23,7 @@ export class MemoryStore {
     this._init();
   }
 
-  private static readonly SCHEMA_VERSION = 8;
+  private static readonly SCHEMA_VERSION = 9;
 
   private static readonly MIGRATIONS: Record<number, string> = {
     1: `
@@ -158,6 +158,11 @@ export class MemoryStore {
 
       CREATE INDEX IF NOT EXISTS idx_contradiction_status ON contradiction_proposals(status);
     `,
+    9: `
+      ALTER TABLE memories ADD COLUMN valence TEXT NOT NULL DEFAULT 'neutral';
+      UPDATE memories SET valence = 'grounding'
+        WHERE tags LIKE '%"principle"%' OR tags LIKE '%"voice"%';
+    `,
   };
 
   private _init(): void {
@@ -180,9 +185,14 @@ export class MemoryStore {
       ? Buffer.from(new Float32Array(input.embedding).buffer)
       : null;
 
+    // Constitutional tags always get grounding, regardless of what was passed
+    const tags = input.tags || [];
+    const isConstitutional = tags.some(t => t === 'principle' || t === 'voice');
+    const valence: Valence = isConstitutional ? 'grounding' : (input.valence ?? 'neutral');
+
     this._db.prepare(`
-      INSERT INTO memories (id, content, embedding, strength, access_count, created_at, last_accessed_at, session_id, tags, metadata)
-      VALUES (?, ?, ?, 1.0, 0, ?, ?, ?, ?, ?)
+      INSERT INTO memories (id, content, embedding, strength, access_count, created_at, last_accessed_at, session_id, tags, metadata, valence)
+      VALUES (?, ?, ?, 1.0, 0, ?, ?, ?, ?, ?, ?)
     `).run(
       id,
       input.content,
@@ -190,8 +200,9 @@ export class MemoryStore {
       now,
       now,
       input.sessionId || null,
-      JSON.stringify(input.tags || []),
+      JSON.stringify(tags),
       JSON.stringify(input.metadata || {}),
+      valence,
     );
 
     return this.get(id)!;
@@ -1104,6 +1115,7 @@ export class MemoryStore {
       supersededAt: row.superseded_at ?? undefined,
       memoryType: row.memory_type ?? 'semantic',
       readiness: row.readiness ?? 0,
+      valence: row.valence ?? 'neutral',
     };
   }
 
