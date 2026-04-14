@@ -1,3 +1,4 @@
+import { getIdleState } from './idle-detector.js';
 import type { GuardianSignals, GuardianTemperature } from './types.js';
 
 export class GuardianComputer {
@@ -29,7 +30,11 @@ export class GuardianComputer {
     else if (value < 0.6) state = 'warm';
     else state = 'trapped';
 
-    return { value, state, signals, computedAt: Date.now() };
+    // Resolve devActive from idle detection if not supplied by caller.
+    // Informational only -- does not affect temperature.
+    const devActive = signals.devActive ?? getIdleState().active;
+
+    return { value, state, signals: { ...signals, devActive }, computedAt: Date.now() };
   }
 
   static hebbianMultiplier(state: 'calm' | 'warm' | 'trapped'): number {

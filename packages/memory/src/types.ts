@@ -256,6 +256,11 @@ export interface ContradictionResult {
 
 // --- Guardian types ---
 
+export interface DevActiveState {
+  idleSeconds: number;
+  active: boolean;
+}
+
 export interface GuardianSignals {
   revisitWithoutAction: number;
   timeSinceLastArtifactExit: number;
@@ -264,6 +269,8 @@ export interface GuardianSignals {
   decayVelocity: number;
   recursionDepth: number;
   hebbianImbalance: number;
+  /** Informational only -- does not affect temperature. Resolved from idle detection if not supplied. */
+  devActive?: boolean;
 }
 
 export interface GuardianTemperature {
