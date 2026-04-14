@@ -189,14 +189,14 @@ describe('MemoryStore', () => {
     });
 
     it('decay follows exponential curve, not linear', () => {
-      // baseStability = 7 means 50% retention after 7 days with no access
+      // baseStability = 7 means 50% retention after 7 days with no access (episodic multiplier = 1.0)
       const mem = store.create({ content: 'exponential decay test' });
       const sevenDaysAgo = Date.now() - 7 * 86400000;
 
-      // Backdate by 7 days (= baseStability)
+      // Set to episodic (multiplier 1.0) and backdate by 7 days (= baseStability)
       (store as any)._db.prepare(
-        'UPDATE memories SET last_accessed_at = ?, last_decay_at = NULL WHERE id = ?'
-      ).run(sevenDaysAgo, mem.id);
+        'UPDATE memories SET memory_type = ?, last_accessed_at = ?, last_decay_at = NULL WHERE id = ?'
+      ).run('episodic', sevenDaysAgo, mem.id);
 
       store.applyDecay();
       const after = store.get(mem.id)!;
@@ -208,25 +208,27 @@ describe('MemoryStore', () => {
 
     it('decay is multiplicative (idempotent across multiple applications)', () => {
       // Applying decay for 3 days then 4 days should equal applying once for 7 days
+      // Uses episodic type (multiplier 1.0) so stability math is straightforward
       const memA = store.create({ content: 'split decay test' });
       const memB = store.create({ content: 'single decay test' });
 
       const sevenDaysAgo = Date.now() - 7 * 86400000;
       const fourDaysAgo = Date.now() - 4 * 86400000;
 
-      // memA: backdate by 7 days, apply once
+      // memA: set episodic, backdate by 7 days, apply once
       (store as any)._db.prepare(
-        'UPDATE memories SET last_accessed_at = ?, last_decay_at = NULL WHERE id = ?'
-      ).run(sevenDaysAgo, memA.id);
+        'UPDATE memories SET memory_type = ?, last_accessed_at = ?, last_decay_at = NULL WHERE id = ?'
+      ).run('episodic', sevenDaysAgo, memA.id);
 
-      // memB: backdate by 7 days, then simulate first decay 4 days ago
+      // memB: set episodic, backdate by 7 days, then simulate first decay 4 days ago
       (store as any)._db.prepare(
-        'UPDATE memories SET last_accessed_at = ?, last_decay_at = NULL WHERE id = ?'
-      ).run(sevenDaysAgo, memB.id);
+        'UPDATE memories SET memory_type = ?, last_accessed_at = ?, last_decay_at = NULL WHERE id = ?'
+      ).run('episodic', sevenDaysAgo, memB.id);
 
       // First: apply decay for memB with last_decay_at = null (7 days ago)
       // but set last_decay_at to 4 days ago to simulate "3 days of decay happened"
-      const stabilityB = 7 * (1 + 0 * 0.5); // accessCount = 0
+      // episodic multiplier = 1.0, so stability = 7 * (1 + 0 * 0.5) * 1.0
+      const stabilityB = 7 * (1 + 0 * 0.5); // accessCount = 0, episodic multiplier = 1.0
       const strengthAfter3Days = 1.0 * Math.exp(-3 * Math.LN2 / stabilityB);
       (store as any)._db.prepare(
         'UPDATE memories SET strength = ?, last_decay_at = ? WHERE id = ?'
@@ -259,6 +261,28 @@ describe('MemoryStore', () => {
 
       // Tiny floating-point drift from milliseconds between calls is acceptable
       expect(afterSecond.strength).toBeCloseTo(afterFirst.strength, 8);
+    });
+
+    it('semantic memories decay slower than episodic memories', () => {
+      const dayMs = 86400000;
+      const fourteenDaysAgo = Date.now() - 14 * dayMs;
+
+      const episodic = store.create({ content: 'episodic event' });
+      const semantic = store.create({ content: 'semantic fact' });
+
+      // Backdate both and set memory types via direct DB access
+      (store as any)._db.prepare(
+        'UPDATE memories SET memory_type = ?, last_accessed_at = ?, last_decay_at = ?, created_at = ? WHERE id = ?'
+      ).run('episodic', fourteenDaysAgo, fourteenDaysAgo, fourteenDaysAgo, episodic.id);
+      (store as any)._db.prepare(
+        'UPDATE memories SET memory_type = ?, last_accessed_at = ?, last_decay_at = ?, created_at = ? WHERE id = ?'
+      ).run('semantic', fourteenDaysAgo, fourteenDaysAgo, fourteenDaysAgo, semantic.id);
+
+      store.applyDecay();
+
+      const e = store.get(episodic.id)!;
+      const s = store.get(semantic.id)!;
+      expect(s.strength).toBeGreaterThan(e.strength);
     });
 
     it('constitutional memories are never decayed', () => {

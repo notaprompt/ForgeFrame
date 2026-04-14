@@ -34,6 +34,13 @@ export const LORA_ELIGIBLE_TAGS: readonly TrimTag[] = ['principle', 'voice', 'pa
 export const MEMORY_TYPES = ['semantic', 'episodic', 'principle', 'artifact'] as const;
 export type MemoryType = typeof MEMORY_TYPES[number];
 
+export const MEMORY_TYPE_STABILITY_MULTIPLIER: Record<string, number> = {
+  semantic: 2.0,      // general knowledge decays slower
+  episodic: 1.0,      // events decay at base rate
+  principle: Infinity, // never decays (also protected by constitutional tags)
+  artifact: 1.5,      // artifacts decay slower than episodes
+};
+
 export interface Memory {
   id: string;
   content: string;

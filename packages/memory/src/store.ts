@@ -8,7 +8,7 @@
 import Database from 'better-sqlite3';
 import { randomUUID } from 'crypto';
 import type { Memory, MemoryCreateInput, MemoryUpdateInput, MemoryConfig, ReconsolidationOptions, Session, SessionCreateInput, SessionListOptions, DistilledArtifact, DistilledArtifactInput, MemoryEdge, EdgeCreateInput, ConsolidationCluster, ConsolidationProposal, ContradictionProposal } from './types.js';
-import { DEFAULT_CONFIG, TRIM_TAGS, CONSTITUTIONAL_TAGS } from './types.js';
+import { DEFAULT_CONFIG, TRIM_TAGS, CONSTITUTIONAL_TAGS, MEMORY_TYPE_STABILITY_MULTIPLIER } from './types.js';
 
 export class MemoryStore {
   private _db: Database.Database;
@@ -351,7 +351,7 @@ export class MemoryStore {
 
     // Fetch all decayable memories
     const rows = this._db.prepare(`
-      SELECT id, strength, access_count, last_accessed_at, last_decay_at
+      SELECT id, strength, access_count, last_accessed_at, last_decay_at, memory_type
       FROM memories
       WHERE strength > ? AND ${excludeClauses}
     `).all(this._config.decayFloor, ...constitutionalPatterns) as any[];
@@ -367,7 +367,10 @@ export class MemoryStore {
         const daysSinceDecay = (now - lastDecay) / dayMs;
         if (daysSinceDecay <= 0) continue;
 
-        const stability = this._config.baseStability * (1 + row.access_count * this._config.accessMultiplier);
+        const typeMultiplier = MEMORY_TYPE_STABILITY_MULTIPLIER[row.memory_type] ?? 1.0;
+        const stability = this._config.baseStability
+          * (1 + row.access_count * this._config.accessMultiplier)
+          * typeMultiplier;
         const newStrength = Math.max(
           this._config.decayFloor,
           row.strength * Math.exp(-daysSinceDecay * Math.LN2 / stability)
