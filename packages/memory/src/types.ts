@@ -254,6 +254,19 @@ export interface ContradictionResult {
   removedEdgeId: string;              // the contradicts edge
 }
 
+// --- Sleep pressure types ---
+
+export interface SleepPressure {
+  score: number;
+  components: {
+    unconsolidated: number;
+    hoursSinceLastDream: number;
+    unscannedContradictions: number;
+    pendingDecay: number;
+  };
+  recommendation: 'sleep' | 'nrem' | 'full';
+}
+
 // --- Guardian types ---
 
 export interface DevActiveState {

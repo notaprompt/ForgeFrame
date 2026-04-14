@@ -35,3 +35,5 @@ export { ContradictionEngine } from './contradictions.js';
 export { OllamaGenerator } from './generator.js';
 export type { Generator, GeneratorConfig } from './generator.js';
 export { findDuplicate } from './dedup.js';
+export { computeSleepPressure } from './sleep-pressure.js';
+export type { SleepPressure } from './types.js';
