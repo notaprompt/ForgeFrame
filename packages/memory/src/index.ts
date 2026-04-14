@@ -34,3 +34,4 @@ export { ConsolidationEngine } from './consolidation.js';
 export { ContradictionEngine } from './contradictions.js';
 export { OllamaGenerator } from './generator.js';
 export type { Generator, GeneratorConfig } from './generator.js';
+export { findDuplicate } from './dedup.js';
