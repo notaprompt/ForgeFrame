@@ -1,0 +1,53 @@
+# ForgeFrame + Hermes integration configuration
+#
+# Model routing: which models handle which tasks
+# Tool enablement: disable Hermes built-in memory, enable ForgeFrame tools
+# MCP connection: how Hermes talks to ForgeFrame
+
+memory:
+  provider: forgeframe
+  # Disable Hermes built-in memory -- ForgeFrame handles all persistence
+  builtin_enabled: false
+
+models:
+  classify:
+    provider: ollama
+    model: gemma4-27b-moe
+    description: Fast local triage and classification
+  evaluate:
+    provider: ollama
+    model: gemma4-31b-dense
+    description: Structured reasoning for scoring
+  creative:
+    provider: anthropic
+    model: claude-sonnet-4-6
+    description: Nuance and voice consistency
+  deep:
+    provider: anthropic
+    model: claude-opus-4-6
+    description: Complex reasoning and architecture
+  dream:
+    provider: ollama
+    model: gemma4-27b-moe
+    description: All dream operations stay local (sovereignty)
+
+tools:
+  # ForgeFrame tools exposed to Hermes
+  guardian_check:
+    enabled: true
+    description: Check cognitive temperature before operations
+  # Hermes built-in tools we keep
+  browser: false
+  delegation: false
+
+mcp:
+  server: node
+  args:
+    - ./packages/server/dist/index.js
+  env:
+    FORGEFRAME_DB_PATH: ~/.forgeframe/memory.db
+
+scheduling:
+  # No fixed cron -- pressure-driven
+  idle_check_interval: 1800  # 30 minutes
+  ollama_keep_alive: 5m
