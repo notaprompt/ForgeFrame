@@ -81,8 +81,13 @@ export class MemoryRetriever {
     scored.sort((a, b) => b.score - a.score);
     const results = scored.slice(0, limit);
 
+    const coRetrievedIds = results.map(r => r.memory.id);
     for (const r of results) {
-      this._store.recordAccess(r.memory.id);
+      this._store.reconsolidate(r.memory.id, {
+        relevanceScore: r.score,
+        query: q.text,
+        coRetrievedIds,
+      });
     }
 
     if (q.sessionId) {

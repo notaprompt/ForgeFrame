@@ -52,4 +52,32 @@ describe('RRF Retrieval', () => {
       expect(results[i - 1].score).toBeGreaterThanOrEqual(results[i].score);
     }
   });
+
+  it('query() calls reconsolidate on returned memories', async () => {
+    // Create a memory with low strength
+    const mem = store.create({ content: 'reconsolidation target' });
+    // Manually reduce strength
+    store['_db'].prepare('UPDATE memories SET strength = 0.3 WHERE id = ?').run(mem.id);
+
+    // Query and get the memory back
+    const results = retriever.query({ text: 'reconsolidation target' });
+    expect(results.length).toBeGreaterThan(0);
+
+    // Verify strength was restored (reconsolidate was called)
+    const updated = store.get(results[0].memory.id)!;
+    expect(updated.strength).toBeGreaterThan(0.3);
+    expect(updated.retrievalCount).toBe(1);
+  });
+
+  it('query() records co-retrieved memory associations', async () => {
+    store.create({ content: 'alpha concept for testing' });
+    store.create({ content: 'alpha related concept for testing' });
+
+    const results = retriever.query({ text: 'alpha concept testing' });
+    expect(results.length).toBeGreaterThanOrEqual(2);
+
+    // Check that memories now have each other in associations
+    const first = store.get(results[0].memory.id)!;
+    expect(first.associations).toContain(results[1].memory.id);
+  });
 });
