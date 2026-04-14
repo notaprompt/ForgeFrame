@@ -80,4 +80,20 @@ describe('RRF Retrieval', () => {
     const first = store.get(results[0].memory.id)!;
     expect(first.associations).toContain(results[1].memory.id);
   });
+
+  it('search finds memories matching any term, not just all terms', async () => {
+    store.create({ content: 'the quick brown fox' });
+    store.create({ content: 'the lazy dog sleeps' });
+
+    const results = await retriever.query({ text: 'quick dog' });
+    // Should find both -- OR semantics, not AND
+    expect(results.length).toBe(2);
+  });
+
+  it('search supports prefix matching', async () => {
+    store.create({ content: 'consolidation engine architecture' });
+
+    const results = await retriever.query({ text: 'consol' });
+    expect(results.length).toBeGreaterThan(0);
+  });
 });

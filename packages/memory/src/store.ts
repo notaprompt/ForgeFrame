@@ -245,26 +245,35 @@ export class MemoryStore {
   }
 
   search(text: string, limit = 20): Memory[] {
-    // Sanitize FTS5 input: strip special characters, quote each term
-    const sanitized = text
+    return this._searchWithRank(text, limit).map((r) => r.memory);
+  }
+
+  searchWithRank(text: string, limit = 20): Array<{ memory: Memory; bm25Rank: number }> {
+    return this._searchWithRank(text, limit);
+  }
+
+  private _searchWithRank(text: string, limit: number): Array<{ memory: Memory; bm25Rank: number }> {
+    // Sanitize FTS5 input: strip special characters, build OR query with prefix matching
+    const terms = text
       .replace(/[^\w\s]/g, ' ')
       .trim()
       .split(/\s+/)
-      .filter(Boolean)
-      .map((t) => `"${t}"`)
-      .join(' ');
+      .filter(Boolean);
 
-    if (!sanitized) return [];
+    if (terms.length === 0) return [];
+
+    // OR semantics: any term matches; prefix matching: "term"* matches partials
+    const ftsQuery = terms.map((t) => `"${t}"*`).join(' OR ');
 
     const rows = this._db.prepare(`
-      SELECT m.* FROM memories m
+      SELECT m.*, f.rank as bm25_rank FROM memories m
       JOIN memories_fts f ON m.rowid = f.rowid
       WHERE memories_fts MATCH ?
       ORDER BY rank
       LIMIT ?
-    `).all(sanitized, limit) as any[];
+    `).all(ftsQuery, limit) as any[];
 
-    return rows.map((r) => this._rowToMemory(r));
+    return rows.map((r) => ({ memory: this._rowToMemory(r), bm25Rank: r.bm25_rank as number }));
   }
 
   getBySession(sessionId: string): Memory[] {

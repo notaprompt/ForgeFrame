@@ -35,16 +35,16 @@ export class MemoryRetriever {
    */
   query(q: MemoryQuery): MemoryResult[] {
     const limit = q.limit ?? 10;
-    const ftsResults = this._store.search(q.text ?? '', limit * 3);
-    const candidates = new Map<string, { memory: Memory; ftsRank?: number; graphRank?: number }>();
+    const ftsRanked = this._store.searchWithRank(q.text ?? '', limit * 3);
+    const candidates = new Map<string, { memory: Memory; ftsRank?: number; bm25Rank?: number; graphRank?: number }>();
 
-    // Strategy 1: FTS
-    ftsResults.forEach((mem, idx) => {
-      candidates.set(mem.id, { memory: mem, ftsRank: idx + 1 });
+    // Strategy 1: FTS with BM25 rank
+    ftsRanked.forEach(({ memory: mem, bm25Rank }) => {
+      candidates.set(mem.id, { memory: mem, ftsRank: candidates.size + 1, bm25Rank });
     });
 
     // Strategy 2: Graph walk from top-3 FTS seeds
-    const seeds = ftsResults.slice(0, 3);
+    const seeds = ftsRanked.slice(0, 3).map((r) => r.memory);
     const graphNeighbors: Memory[] = [];
     for (const seed of seeds) {
       const sub = this._store.getSubgraph(seed.id, 1);
@@ -63,15 +63,20 @@ export class MemoryRetriever {
       }
     });
 
-    // RRF fusion
+    // RRF fusion with BM25-based FTS scoring
     const k = 60;
+    const allBm25 = [...candidates.values()].map((c) => Math.abs(c.bm25Rank || 1));
+    const maxBm25 = allBm25.length > 0 ? Math.max(...allBm25) : 1;
     const scored: MemoryResult[] = [];
-    for (const [, { memory, ftsRank, graphRank }] of candidates) {
+    for (const [, { memory, ftsRank, bm25Rank, graphRank }] of candidates) {
       if (q.minStrength && memory.strength < q.minStrength) continue;
       if (q.tags?.length && !q.tags.some(t => memory.tags.includes(t))) continue;
 
       let score = 0;
-      if (ftsRank) score += 1 / (k + ftsRank);
+      if (ftsRank) {
+        // Use BM25 rank (negative: more negative = better) normalized to [0,1]
+        score += Math.abs(bm25Rank || 0) / maxBm25 * (1 / (k + ftsRank));
+      }
       if (graphRank) score += 1 / (k + graphRank);
       score += memory.strength * 0.01;
 
