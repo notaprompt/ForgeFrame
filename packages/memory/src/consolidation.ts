@@ -169,6 +169,26 @@ export class ConsolidationEngine {
     return this._store.resolveProposal(proposalId, 'rejected');
   }
 
+  getPromotionCandidates(minRetrievalCount = 5): Memory[] {
+    const rows = this._store['_db'].prepare(`
+      SELECT * FROM memories
+      WHERE memory_type = 'episodic'
+      AND retrieval_count >= ?
+      AND tags NOT LIKE '%"principle"%'
+      AND tags NOT LIKE '%"voice"%'
+      ORDER BY retrieval_count DESC
+      LIMIT 20
+    `).all(minRetrievalCount);
+
+    return rows.map((r: any) => this._store['_rowToMemory'](r));
+  }
+
+  promoteToSemantic(id: string): void {
+    this._store['_db'].prepare(`
+      UPDATE memories SET memory_type = 'semantic' WHERE id = ? AND memory_type = 'episodic'
+    `).run(id);
+  }
+
   private _isConstitutional(memory: Memory): boolean {
     return memory.tags.some((t) =>
       (CONSTITUTIONAL_TAGS as readonly string[]).includes(t)

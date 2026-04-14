@@ -223,6 +223,39 @@ describe('ConsolidationEngine — cluster scanning', () => {
   });
 });
 
+describe('ConsolidationEngine — promotion', () => {
+  let store: MemoryStore;
+  let engine: ConsolidationEngine;
+
+  beforeEach(() => {
+    store = new MemoryStore({ dbPath: ':memory:' });
+    engine = new ConsolidationEngine(store, new MockGenerator());
+  });
+
+  afterEach(() => {
+    store.close();
+  });
+
+  it('getPromotionCandidates returns episodic memories with high retrieval count', () => {
+    const m1 = store.create({ content: 'event one' });
+    const m2 = store.create({ content: 'event two' });
+    store.create({ content: 'fact three' });
+
+    // Set m1 and m2 to episodic type via direct SQL
+    store['_db'].prepare("UPDATE memories SET memory_type = 'episodic' WHERE id = ?").run(m1.id);
+    store['_db'].prepare("UPDATE memories SET memory_type = 'episodic' WHERE id = ?").run(m2.id);
+
+    // Bump retrieval count on m1
+    for (let i = 0; i < 10; i++) {
+      store.reconsolidate(m1.id, { relevanceScore: 0.8 });
+    }
+
+    const candidates = engine.getPromotionCandidates(5);
+    expect(candidates.length).toBe(1);
+    expect(candidates[0].id).toBe(m1.id);
+  });
+});
+
 describe('ConsolidationEngine — proposal + approval + rejection', () => {
   let store: MemoryStore;
   let engine: ConsolidationEngine;
