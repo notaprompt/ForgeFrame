@@ -9,7 +9,7 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { streamSSE } from 'hono/streaming';
 import { serve } from '@hono/node-server';
-import { GuardianComputer, ConsolidationEngine, ContradictionEngine, HebbianEngine, NremPhase, computeSleepPressure, selectSeeds, applySeedGrade, findHindsightCandidates, applyHindsightResponse, findTensionCandidates, RemPhase } from '@forgeframe/memory';
+import { GuardianComputer, ConsolidationEngine, ContradictionEngine, HebbianEngine, NremPhase, computeSleepPressure, selectSeeds, applySeedGrade, findHindsightCandidates, applyHindsightResponse, findTensionCandidates, RemPhase, computeClusters } from '@forgeframe/memory';
 import type { GuardianSignals, MemoryEdge, MemoryStore, Generator, SeedGrade, HindsightResponse } from '@forgeframe/memory';
 import type { ServerEvents } from './events.js';
 import { bearerAuth } from './auth.js';
@@ -522,6 +522,11 @@ export function startHttpServer({ store, events, port, hostname, generator }: Ht
       }
     }
     return c.json({ nodes: memories.map(sanitize), edges: allEdges, total: store.count() });
+  });
+
+  app.get('/api/graph/clustered', (c) => {
+    const result = computeClusters(store);
+    return c.json(result);
   });
 
   // --- SSE live feed ---

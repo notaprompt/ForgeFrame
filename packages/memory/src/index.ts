@@ -53,3 +53,5 @@ export { findTensionCandidates } from './tensions.js';
 export type { TensionCandidate } from './tensions.js';
 export { RemPhase } from './dream-rem.js';
 export type { RemResult } from './dream-rem.js';
+export { computeClusters } from './clustering.js';
+export type { ClusteredGraph, ClusteredNode, ClusterInfo } from './clustering.js';
