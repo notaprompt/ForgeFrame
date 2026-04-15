@@ -938,7 +938,7 @@
   <aside class="glass sidebar" id="sidebar"></aside>
 
   <main class="main-area" id="main-area">
-    <canvas id="graph-canvas"></canvas>
+    <canvas id="graph-canvas" style="display:none"></canvas>
     <div id="cy-container" style="position:absolute;top:0;left:0;right:0;bottom:0;z-index:1;background:transparent;"></div>
     <div class="list-view" id="list-view"></div>
     <div class="feed-view" id="feed-view"></div>
@@ -2047,36 +2047,40 @@
     var bar = document.getElementById('zoom-bar');
     clearEl(bar);
     var zoomIn = el('div', { className: 'zbtn', textContent: '+' });
-    zoomIn.addEventListener('click', function() { state.zoom = Math.min(5, state.zoom * 1.2); });
+    zoomIn.addEventListener('click', function() {
+      if (cy) cy.zoom({ level: cy.zoom() * 1.3, renderedPosition: { x: cy.width() / 2, y: cy.height() / 2 } });
+    });
     bar.appendChild(zoomIn);
     var zoomOut = el('div', { className: 'zbtn', textContent: '\u2212' });
-    zoomOut.addEventListener('click', function() { state.zoom = Math.max(0.1, state.zoom * 0.8); });
+    zoomOut.addEventListener('click', function() {
+      if (cy) cy.zoom({ level: cy.zoom() * 0.7, renderedPosition: { x: cy.width() / 2, y: cy.height() / 2 } });
+    });
     bar.appendChild(zoomOut);
     var zoomFit = el('div', { className: 'zbtn', textContent: '\u25A3' });
-    zoomFit.addEventListener('click', function() { state.zoom = 1; state.camX = 0; state.camY = 0; });
+    zoomFit.addEventListener('click', function() { if (cy) cy.fit(null, 50); });
     bar.appendChild(zoomFit);
   }
 
   // ===== VIEW TOGGLE =====
   function switchView(viewName) {
     state.activeView = viewName.toLowerCase();
-    // Sync sidebar view name
     if (state.activeView === 'graph') state.sidebarView = 'graph';
     else if (state.activeView === 'list') state.sidebarView = 'memories';
     else if (state.activeView === 'feed') state.sidebarView = 'sessions';
 
-    var gc = document.getElementById('graph-canvas');
+    var cyEl = document.getElementById('cy-container');
     var lv = document.getElementById('list-view');
     var fv = document.getElementById('feed-view');
     var zb = document.getElementById('zoom-bar');
 
-    gc.style.display = state.activeView === 'graph' ? 'block' : 'none';
+    if (cyEl) cyEl.style.display = state.activeView === 'graph' ? 'block' : 'none';
     lv.classList.toggle('active', state.activeView === 'list');
     fv.classList.toggle('active', state.activeView === 'feed');
     zb.style.display = state.activeView === 'graph' ? 'flex' : 'none';
 
     if (state.activeView === 'list') renderListView();
     if (state.activeView === 'feed') renderFeedView();
+    if (state.activeView === 'graph' && cy) cy.resize();
   }
 
   function renderListView() {
@@ -2341,6 +2345,7 @@
           state.theme = t;
           localStorage.setItem('ff-theme', t);
           document.documentElement.setAttribute('data-theme', t);
+          updateCytoscapeTheme();
           showSettings();
         });
         swatches.appendChild(swatch);
@@ -2597,26 +2602,23 @@
 
   // ===== DATA LOADING =====
   function loadGraph() {
-    return api('/api/graph/full?limit=2000').then(function(data) {
-      var nodes = data.nodes || [];
-      var edges = data.edges || [];
-      state.nodes = nodes;
-      state.edges = edges;
+    return api('/api/graph/clustered').then(function(data) {
+      state.nodes = data.nodes || [];
+      state.edges = data.edges || [];
       state.nodeMap.clear();
-      for (var i = 0; i < nodes.length; i++) {
-        state.nodeMap.set(nodes[i].id, nodes[i]);
+      for (var i = 0; i < state.nodes.length; i++) {
+        state.nodeMap.set(state.nodes[i].id, state.nodes[i]);
       }
-      state.memoryCount = data.total || nodes.length;
-      state.edgeCount = edges.length;
+      state.memoryCount = data.nodes ? data.nodes.length : 0;
+      state.edgeCount = data.edges ? data.edges.length : 0;
 
-      if (nodes.length > 0) {
+      if (state.nodes.length > 0) {
         var sum = 0;
-        for (var j = 0; j < nodes.length; j++) sum += (nodes[j].strength || 0);
-        state.avgStrength = sum / nodes.length;
+        for (var j = 0; j < state.nodes.length; j++) sum += (state.nodes[j].strength || 0);
+        state.avgStrength = sum / state.nodes.length;
       }
 
-      state.simTick = 0; // reheat simulation
-      initNodePositions();
+      initCytoscape(data);
       renderSidebar();
       renderStatusbar();
     }).catch(function(err) {
@@ -3335,8 +3337,6 @@
   // ===== MAIN LOOP =====
   function mainLoop(time) {
     drawThermal(time);
-    simulateForces();
-    drawGraph();
     if (sonarSmallCanvas) drawSonar(sonarSmallCanvas, state.guardianTemp, state.guardianState, state.sleepPressure, time);
     if (sonarLargeCanvas && state.signalOverlayOpen) drawSonar(sonarLargeCanvas, state.guardianTemp, state.guardianState, state.sleepPressure, time);
     requestAnimationFrame(mainLoop);
@@ -3348,7 +3348,10 @@
 
     initThermal();
     resizeGraph();
-    window.addEventListener('resize', resizeGraph);
+    window.addEventListener('resize', function() {
+      resizeGraph();
+      if (cy) cy.resize();
+    });
 
     document.addEventListener('visibilitychange', function() {
       if (!document.hidden && !state.eventSource) {
@@ -3407,7 +3410,10 @@
     document.documentElement.setAttribute('data-theme', state.theme);
     initThermal();
     resizeGraph();
-    window.addEventListener('resize', resizeGraph);
+    window.addEventListener('resize', function() {
+      resizeGraph();
+      if (cy) cy.resize();
+    });
     buildSearch();
     buildCtxMenu();
     buildZoomBar();
