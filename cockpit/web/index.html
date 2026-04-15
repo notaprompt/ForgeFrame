@@ -2793,6 +2793,80 @@
     }).catch(function() {});
   }
 
+  function buildGraphHealthSection() {
+    var section = el('div', { className: 'signal-section' });
+    section.appendChild(el('div', { className: 'signal-section-label', textContent: 'graph health' }));
+
+    var health = el('div', { className: 'graph-health' });
+    var stats = [
+      { value: state.memoryCount, label: 'memories' },
+      { value: state.edgeCount.toLocaleString(), label: 'edges' },
+      { value: state.avgStrength.toFixed(2), label: 'avg weight' },
+    ];
+    for (var si = 0; si < stats.length; si++) {
+      var stat = el('div', { className: 'health-stat' });
+      stat.appendChild(el('div', { className: 'health-value', textContent: String(stats[si].value) }));
+      stat.appendChild(el('div', { className: 'health-label', textContent: stats[si].label }));
+      health.appendChild(stat);
+    }
+    section.appendChild(health);
+
+    if (state.latestJournal && state.latestJournal.content) {
+      var calEntries = parseJournalSection(state.latestJournal.content, 'Source calibration');
+      if (calEntries.length > 0) {
+        section.appendChild(el('div', { className: 'signal-section-label', style: { marginTop: '16px' }, textContent: 'source calibration' }));
+        for (var ci = 0; ci < calEntries.length; ci++) {
+          var parts = calEntries[ci].match(/^(.+?):\s*(\d+)\/(\d+)\s+survived\s+\((\d+)%\)/);
+          if (parts) {
+            var row = el('div', { className: 'calibration-row' });
+            row.appendChild(el('div', { className: 'calibration-source', textContent: parts[1] }));
+            var track = el('div', { className: 'calibration-bar-track' });
+            var fill = el('div', { className: 'calibration-bar-fill' });
+            fill.style.width = parts[4] + '%';
+            if (parseInt(parts[4]) > 60) fill.style.background = 'var(--gold-dim)';
+            track.appendChild(fill);
+            row.appendChild(track);
+            row.appendChild(el('div', { className: 'calibration-pct', textContent: parts[4] + '%' }));
+            section.appendChild(row);
+          }
+        }
+      }
+
+      var silenceEntries = parseJournalSection(state.latestJournal.content, 'Gone quiet');
+      if (silenceEntries.length > 0) {
+        section.appendChild(el('div', { className: 'signal-section-label', style: { marginTop: '16px' }, textContent: 'gone quiet' }));
+        for (var qi = 0; qi < silenceEntries.length; qi++) {
+          section.appendChild(el('div', { className: 'silence-entry', textContent: silenceEntries[qi] }));
+        }
+      }
+
+      var driftEntries = parseJournalSection(state.latestJournal.content, 'Drift');
+      if (driftEntries.length > 0) {
+        section.appendChild(el('div', { className: 'signal-section-label', style: { marginTop: '16px' }, textContent: 'drift' }));
+        for (var di = 0; di < driftEntries.length; di++) {
+          section.appendChild(el('div', { className: 'drift-entry', textContent: driftEntries[di] }));
+        }
+      }
+    }
+
+    return section;
+  }
+
+  function parseJournalSection(content, sectionName) {
+    var lines = content.split('\n');
+    var entries = [];
+    var inSection = false;
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i].trim();
+      if (line === '## ' + sectionName) { inSection = true; continue; }
+      if (line.startsWith('## ') && inSection) break;
+      if (inSection && line.startsWith('- ')) {
+        entries.push(line.slice(2));
+      }
+    }
+    return entries;
+  }
+
   // ===== MAIN LOOP =====
   function mainLoop(time) {
     drawThermal(time);
