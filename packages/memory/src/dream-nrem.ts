@@ -17,6 +17,16 @@ import { findDuplicate } from './dedup.js';
 import { classifyValence } from './valence.js';
 
 const PRUNE_THRESHOLD = 0.05;
+const CALIBRATION_AGE_DAYS = 7;
+const DECAY_FLOOR = 0.1;
+
+export interface SourceCalibrationEntry {
+  source: string;
+  total: number;
+  survived: number;
+  survivalRate: number;
+  flag: 'low' | 'high' | 'ok' | null;
+}
 
 export interface NremResult {
   duration: number;
@@ -25,6 +35,7 @@ export interface NremResult {
   clustersFound: number;
   dedupProposals: number;
   valenceBackfilled: number;
+  sourceCalibration: SourceCalibrationEntry[];
   errors: string[];
 }
 
@@ -45,6 +56,7 @@ export class NremPhase {
       clustersFound: 0,
       dedupProposals: 0,
       valenceBackfilled: 0,
+      sourceCalibration: [],
       errors: [],
     };
 
@@ -110,6 +122,13 @@ export class NremPhase {
       result.valenceBackfilled = backfilled;
     } catch (e) {
       result.errors.push(`valence: ${(e as Error).message}`);
+    }
+
+    // Step 5: Source calibration — survival audit for external source organs
+    try {
+      result.sourceCalibration = this._computeSourceCalibration();
+    } catch (e) {
+      result.errors.push(`calibration: ${(e as Error).message}`);
     }
 
     result.duration = Date.now() - start;
@@ -200,5 +219,76 @@ export class NremPhase {
     }
 
     return backfilled;
+  }
+
+  /**
+   * Compute survival rates for memories from external sources.
+   * Queries memories older than 7 days that have a source-identifying tag
+   * (e.g. 'source:distillery', 'source:hermes'). A memory "survived" if
+   * its strength is above the decay floor AND it has been accessed at least once.
+   *
+   * Flags:
+   *   - 'low' if survival < 30% (source threshold may be too permissive)
+   *   - 'high' if survival > 80% (source threshold may be too conservative)
+   *   - 'ok' otherwise
+   *   - null if sample too small (< 5 memories)
+   */
+  private _computeSourceCalibration(): SourceCalibrationEntry[] {
+    const db = (this.store as any)['_db'];
+    const ageCutoff = Date.now() - CALIBRATION_AGE_DAYS * 86_400_000;
+
+    // Find all distinct source:* tags in the database
+    const tagRows = db.prepare(`
+      SELECT DISTINCT tags FROM memories
+      WHERE created_at < ?
+      AND tags LIKE '%"source:%'
+    `).all(ageCutoff) as Array<{ tags: string }>;
+
+    // Extract unique source tags
+    const sourceTags = new Set<string>();
+    for (const row of tagRows) {
+      const tags: string[] = JSON.parse(row.tags);
+      for (const tag of tags) {
+        if (tag.startsWith('source:')) sourceTags.add(tag);
+      }
+    }
+
+    const entries: SourceCalibrationEntry[] = [];
+
+    for (const sourceTag of sourceTags) {
+      const pattern = `%${JSON.stringify(sourceTag).slice(1, -1)}%`;
+
+      const total = (db.prepare(`
+        SELECT COUNT(*) as cnt FROM memories
+        WHERE created_at < ? AND tags LIKE ?
+      `).get(ageCutoff, pattern) as { cnt: number }).cnt;
+
+      if (total === 0) continue;
+
+      const survived = (db.prepare(`
+        SELECT COUNT(*) as cnt FROM memories
+        WHERE created_at < ? AND tags LIKE ?
+        AND strength > ? AND access_count > 0
+      `).get(ageCutoff, pattern, DECAY_FLOOR) as { cnt: number }).cnt;
+
+      const survivalRate = Math.round((survived / total) * 100) / 100;
+
+      let flag: SourceCalibrationEntry['flag'] = null;
+      if (total >= 5) {
+        if (survivalRate < 0.3) flag = 'low';
+        else if (survivalRate > 0.8) flag = 'high';
+        else flag = 'ok';
+      }
+
+      entries.push({
+        source: sourceTag,
+        total,
+        survived,
+        survivalRate,
+        flag,
+      });
+    }
+
+    return entries;
   }
 }

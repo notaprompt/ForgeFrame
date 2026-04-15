@@ -186,4 +186,150 @@ describe('NremPhase — result shape', () => {
 
     expect(result.valenceBackfilled).toBe(0);
   });
+
+  it('includes sourceCalibration in result', async () => {
+    const nrem = makeNrem(store);
+    const result = await nrem.run();
+
+    expect(Array.isArray(result.sourceCalibration)).toBe(true);
+  });
+});
+
+describe('NremPhase — source calibration', () => {
+  let store: MemoryStore;
+
+  beforeEach(() => {
+    store = new MemoryStore({ dbPath: ':memory:' });
+  });
+
+  afterEach(() => {
+    store.close();
+  });
+
+  it('returns empty calibration with no source-tagged memories', async () => {
+    store.create({ content: 'regular memory without source tag' });
+
+    const nrem = makeNrem(store);
+    const result = await nrem.run();
+
+    expect(result.sourceCalibration).toHaveLength(0);
+  });
+
+  it('computes survival rate for source-tagged memories older than 7 days', async () => {
+    const db = (store as any)['_db'];
+    const oldTimestamp = Date.now() - 10 * 86_400_000; // 10 days ago
+
+    // Create 5 distillery memories, backdate them
+    for (let i = 0; i < 5; i++) {
+      const m = store.create({ content: `distillery item ${i}`, tags: ['source:distillery'] });
+      db.prepare('UPDATE memories SET created_at = ? WHERE id = ?').run(oldTimestamp, m.id);
+    }
+
+    // Make 2 of them "survive" — accessed and above floor strength
+    const all = store.listByTag('source:distillery');
+    for (let i = 0; i < 2; i++) {
+      store.recordAccess(all[i].id);
+    }
+
+    const nrem = makeNrem(store);
+    const result = await nrem.run();
+
+    expect(result.sourceCalibration).toHaveLength(1);
+    const entry = result.sourceCalibration[0];
+    expect(entry.source).toBe('source:distillery');
+    expect(entry.total).toBe(5);
+    expect(entry.survived).toBe(2);
+    expect(entry.survivalRate).toBe(0.4);
+    expect(entry.flag).toBe('ok');
+  });
+
+  it('flags low survival rate when below 30%', async () => {
+    const db = (store as any)['_db'];
+    const oldTimestamp = Date.now() - 10 * 86_400_000;
+
+    // Create 10 distillery memories, none accessed (all will have 0% survival)
+    for (let i = 0; i < 10; i++) {
+      const m = store.create({ content: `distillery noise ${i}`, tags: ['source:distillery'] });
+      db.prepare('UPDATE memories SET created_at = ? WHERE id = ?').run(oldTimestamp, m.id);
+    }
+
+    const nrem = makeNrem(store);
+    const result = await nrem.run();
+
+    expect(result.sourceCalibration).toHaveLength(1);
+    expect(result.sourceCalibration[0].flag).toBe('low');
+  });
+
+  it('flags high survival rate when above 80%', async () => {
+    const db = (store as any)['_db'];
+    const oldTimestamp = Date.now() - 10 * 86_400_000;
+
+    // Create 5 distillery memories, all accessed
+    for (let i = 0; i < 5; i++) {
+      const m = store.create({ content: `distillery gold ${i}`, tags: ['source:distillery'] });
+      db.prepare('UPDATE memories SET created_at = ? WHERE id = ?').run(oldTimestamp, m.id);
+      store.recordAccess(m.id);
+    }
+
+    const nrem = makeNrem(store);
+    const result = await nrem.run();
+
+    expect(result.sourceCalibration).toHaveLength(1);
+    expect(result.sourceCalibration[0].flag).toBe('high');
+  });
+
+  it('returns null flag when sample is too small', async () => {
+    const db = (store as any)['_db'];
+    const oldTimestamp = Date.now() - 10 * 86_400_000;
+
+    // Only 3 memories — below the 5-memory threshold for flagging
+    for (let i = 0; i < 3; i++) {
+      const m = store.create({ content: `distillery sparse ${i}`, tags: ['source:distillery'] });
+      db.prepare('UPDATE memories SET created_at = ? WHERE id = ?').run(oldTimestamp, m.id);
+    }
+
+    const nrem = makeNrem(store);
+    const result = await nrem.run();
+
+    expect(result.sourceCalibration).toHaveLength(1);
+    expect(result.sourceCalibration[0].flag).toBeNull();
+  });
+
+  it('ignores memories younger than 7 days', async () => {
+    // Create recent distillery memories — should not appear in calibration
+    for (let i = 0; i < 5; i++) {
+      store.create({ content: `distillery recent ${i}`, tags: ['source:distillery'] });
+    }
+
+    const nrem = makeNrem(store);
+    const result = await nrem.run();
+
+    expect(result.sourceCalibration).toHaveLength(0);
+  });
+
+  it('tracks multiple sources independently', async () => {
+    const db = (store as any)['_db'];
+    const oldTimestamp = Date.now() - 10 * 86_400_000;
+
+    for (let i = 0; i < 5; i++) {
+      const m = store.create({ content: `distillery item ${i}`, tags: ['source:distillery'] });
+      db.prepare('UPDATE memories SET created_at = ? WHERE id = ?').run(oldTimestamp, m.id);
+    }
+    for (let i = 0; i < 5; i++) {
+      const m = store.create({ content: `hermes item ${i}`, tags: ['source:hermes'] });
+      db.prepare('UPDATE memories SET created_at = ? WHERE id = ?').run(oldTimestamp, m.id);
+      store.recordAccess(m.id); // hermes memories all accessed
+    }
+
+    const nrem = makeNrem(store);
+    const result = await nrem.run();
+
+    expect(result.sourceCalibration).toHaveLength(2);
+    const distillery = result.sourceCalibration.find(e => e.source === 'source:distillery');
+    const hermes = result.sourceCalibration.find(e => e.source === 'source:hermes');
+    expect(distillery).toBeDefined();
+    expect(hermes).toBeDefined();
+    expect(distillery!.survivalRate).toBe(0);
+    expect(hermes!.survivalRate).toBe(1);
+  });
 });

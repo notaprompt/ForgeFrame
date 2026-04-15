@@ -38,7 +38,7 @@ export { findDuplicate } from './dedup.js';
 export { computeSleepPressure } from './sleep-pressure.js';
 export type { SleepPressure } from './types.js';
 export { NremPhase } from './dream-nrem.js';
-export type { NremResult } from './dream-nrem.js';
+export type { NremResult, SourceCalibrationEntry } from './dream-nrem.js';
 export { writeDreamJournal } from './dream-journal.js';
 export type { DreamJournalInput, GraphHealthStats } from './dream-journal.js';
 export { selectSeeds, applySeedGrade } from './dream-seeding.js';

@@ -12,6 +12,7 @@
 import type { MemoryStore } from './store.js';
 import type { Memory } from './types.js';
 import type { Generator } from './generator.js';
+import type { SourceCalibrationEntry } from './dream-nrem.js';
 
 export interface DreamJournalInput {
   phase: 'nrem' | 'rem' | 'full';
@@ -23,6 +24,7 @@ export interface DreamJournalInput {
   clustersFound: number;
   dedupProposals: number;
   valenceBackfilled: number;
+  sourceCalibration?: SourceCalibrationEntry[];
   errors: string[];
 }
 
@@ -114,6 +116,22 @@ function buildTemplateBody(
   lines.push(`- Total edges: ${health.totalEdges}`);
   lines.push(`- Avg edge weight: ${health.avgEdgeWeight}`);
   lines.push(`- Orphan memories: ${health.orphanCount}`);
+
+  if (input.sourceCalibration && input.sourceCalibration.length > 0) {
+    lines.push('');
+    lines.push('## Source calibration');
+    for (const entry of input.sourceCalibration) {
+      const pct = Math.round(entry.survivalRate * 100);
+      const flagLabel = entry.flag === 'low'
+        ? ' — threshold may be too permissive'
+        : entry.flag === 'high'
+          ? ' — threshold may be too conservative'
+          : entry.flag === 'ok'
+            ? ''
+            : ' — sample too small';
+      lines.push(`- ${entry.source}: ${entry.survived}/${entry.total} survived (${pct}%)${flagLabel}`);
+    }
+  }
 
   return lines.join('\n');
 }
