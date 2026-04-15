@@ -2867,6 +2867,136 @@
     return entries;
   }
 
+  function buildTensionSection(tension) {
+    var section = el('div', { className: 'signal-section' });
+    section.appendChild(el('div', { className: 'signal-section-label', textContent: 'productive tension' }));
+
+    var card = el('div', { className: 'tension-card' });
+
+    var actions = el('div', { className: 'tension-actions' });
+
+    var pinBtn = el('button', { className: 'tension-action-btn', textContent: '\u25C9' });
+    pinBtn.setAttribute('title', 'pin');
+    pinBtn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      pinTension(tension);
+      pinBtn.style.color = 'var(--gold)';
+    });
+    actions.appendChild(pinBtn);
+
+    var dismissBtn = el('button', { className: 'tension-action-btn', textContent: '\u00d7' });
+    dismissBtn.setAttribute('title', 'dismiss');
+    dismissBtn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      section.style.opacity = '0';
+      setTimeout(function() { section.remove(); }, 300);
+    });
+    actions.appendChild(dismissBtn);
+
+    card.appendChild(actions);
+
+    var pair = el('div', { className: 'tension-pair' });
+    pair.appendChild(el('div', { className: 'tension-memory', textContent: '"' + truncate(tension.memoryAContent || '', 80) + '"' }));
+    pair.appendChild(el('div', { className: 'tension-vs', textContent: '\u2194' }));
+    pair.appendChild(el('div', { className: 'tension-memory', textContent: '"' + truncate(tension.memoryBContent || '', 80) + '"' }));
+    card.appendChild(pair);
+
+    card.appendChild(el('div', { className: 'tension-note', textContent: 'Both strongly held. Neither is wrong.' }));
+
+    section.appendChild(card);
+    return section;
+  }
+
+  function pinTension(tension) {
+    var pinned = state.pinnedTensions;
+    var key = tension.memoryAId + ':' + tension.memoryBId;
+    if (!pinned.some(function(p) { return p.key === key; })) {
+      pinned.push({
+        key: key,
+        memoryA: tension.memoryAContent || '',
+        memoryB: tension.memoryBContent || '',
+        pinnedAt: Date.now(),
+        note: '',
+      });
+      localStorage.setItem('ff-pinned-tensions', JSON.stringify(pinned));
+    }
+  }
+
+  function buildHindsightSection(candidate) {
+    var section = el('div', { className: 'signal-section' });
+    section.appendChild(el('div', { className: 'signal-section-label', textContent: 'does this still feel true?' }));
+
+    var card = el('div', { className: 'hindsight-card' });
+    card.appendChild(el('div', { className: 'hindsight-memory', textContent: '"' + truncate(candidate.content || '', 120) + '"' }));
+
+    var statParts = [];
+    if (candidate.edgeCount) statParts.push('reinforced ' + candidate.edgeCount + 'x');
+    if (candidate.scrutinyScore) statParts.push('scrutiny ' + candidate.scrutinyScore.toFixed(2));
+    if (candidate.valence) statParts.push(candidate.valence);
+    card.appendChild(el('div', { className: 'hindsight-stat', textContent: statParts.join(' \u00b7 ') }));
+
+    card.appendChild(el('div', { className: 'hindsight-question', textContent: 'does this still feel true?' }));
+
+    var nuanceInput = el('input', {
+      className: 'hindsight-nuance-input',
+      type: 'text',
+      placeholder: 'add nuance...',
+    });
+    card.appendChild(nuanceInput);
+
+    var btns = el('div', { className: 'grade-btns' });
+
+    var keepBtn = el('button', { className: 'grade-btn', textContent: 'keep' });
+    keepBtn.addEventListener('click', function() {
+      respondHindsight(candidate.memoryId, 'keep', null);
+      section.style.opacity = '0.4';
+      section.style.pointerEvents = 'none';
+    });
+    btns.appendChild(keepBtn);
+
+    var nuanceBtn = el('button', { className: 'grade-btn', textContent: 'add nuance' });
+    nuanceBtn.addEventListener('click', function() {
+      nuanceInput.classList.add('visible');
+      setTimeout(function() { nuanceInput.focus(); }, 100);
+      nuanceInput.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter' && nuanceInput.value) {
+          respondHindsight(candidate.memoryId, 'revise', nuanceInput.value);
+          section.style.opacity = '0.4';
+          section.style.pointerEvents = 'none';
+        }
+      });
+    });
+    btns.appendChild(nuanceBtn);
+
+    var weakenBtn = el('button', { className: 'grade-btn miss', textContent: 'weaken' });
+    var weakenConfirmed = false;
+    weakenBtn.addEventListener('click', function() {
+      if (!weakenConfirmed) {
+        weakenConfirmed = true;
+        weakenBtn.textContent = 'confirm weaken';
+        weakenBtn.classList.add('confirm');
+        return;
+      }
+      respondHindsight(candidate.memoryId, 'weaken', null);
+      section.style.opacity = '0.4';
+      section.style.pointerEvents = 'none';
+    });
+    btns.appendChild(weakenBtn);
+
+    card.appendChild(btns);
+    section.appendChild(card);
+    return section;
+  }
+
+  function respondHindsight(memoryId, response, revisedContent) {
+    var body = { response: response };
+    if (revisedContent) body.revisedContent = revisedContent;
+    api('/api/dream/hindsight/' + memoryId + '/respond', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }).catch(function() {});
+  }
+
   // ===== MAIN LOOP =====
   function mainLoop(time) {
     drawThermal(time);
