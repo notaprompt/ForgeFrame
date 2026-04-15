@@ -2182,6 +2182,8 @@
   function drawSonar(canvas, guardianTemp, guardianState, pressure, time) {
     var ctx = canvas.getContext('2d');
     if (!ctx) return;
+    var reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reducedMotion) time = 0;
     var w = canvas.width;
     var h = canvas.height;
     ctx.clearRect(0, 0, w, h);
@@ -2365,6 +2367,11 @@
 
   // ===== KEYBOARD SHORTCUTS =====
   document.addEventListener('keydown', function(e) {
+    if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === 's') {
+      e.preventDefault();
+      if (state.signalOverlayOpen) closeSignalOverlay();
+      else openSignalOverlay();
+    }
     if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
       e.preventDefault();
       var input = document.querySelector('.search-pill input');
@@ -2497,6 +2504,49 @@
         if (data.signals) state.guardianSignals = data.signals;
         renderSidebar();
         renderStatusbar();
+      } catch(err) { /* ignore */ }
+    });
+
+    es.addEventListener('dream:journal:written', function(e) {
+      try {
+        loadLatestJournal().then(function() { renderInspector(); });
+        loadSleepPressure();
+      } catch(err) { /* ignore */ }
+    });
+
+    es.addEventListener('dream:nrem:complete', function(e) {
+      try {
+        loadSleepPressure();
+        loadLatestJournal().then(function() { renderInspector(); });
+      } catch(err) { /* ignore */ }
+    });
+
+    es.addEventListener('dream:rem:complete', function(e) {
+      try {
+        loadSleepPressure();
+        loadLatestJournal().then(function() { renderInspector(); });
+      } catch(err) { /* ignore */ }
+    });
+
+    es.addEventListener('dream:seed:graded', function(e) {
+      try {
+        if (state.signalOverlayOpen) loadSignalData();
+      } catch(err) { /* ignore */ }
+    });
+
+    es.addEventListener('guardian:sleep_pressure', function(e) {
+      try {
+        var data = JSON.parse(e.data);
+        if (data.score !== undefined) state.sleepPressure = data.score;
+        if (data.components) state.sleepPressureComponents = data.components;
+      } catch(err) { /* ignore */ }
+    });
+
+    es.addEventListener('valence:classified', function(e) {
+      try {
+        var data = JSON.parse(e.data);
+        var existing = state.nodeMap.get(data.memoryId);
+        if (existing) existing.valence = data.valence;
       } catch(err) { /* ignore */ }
     });
 
