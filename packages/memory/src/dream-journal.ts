@@ -13,6 +13,8 @@ import type { MemoryStore } from './store.js';
 import type { Memory } from './types.js';
 import type { Generator } from './generator.js';
 import type { SourceCalibrationEntry } from './dream-nrem.js';
+import type { SilenceEntry } from './silence.js';
+import type { DriftEntry } from './drift.js';
 
 export interface DreamJournalInput {
   phase: 'nrem' | 'rem' | 'full';
@@ -25,6 +27,8 @@ export interface DreamJournalInput {
   dedupProposals: number;
   valenceBackfilled: number;
   sourceCalibration?: SourceCalibrationEntry[];
+  silence?: SilenceEntry[];
+  drift?: DriftEntry[];
   errors: string[];
 }
 
@@ -130,6 +134,24 @@ function buildTemplateBody(
             ? ''
             : ' — sample too small';
       lines.push(`- ${entry.source}: ${entry.survived}/${entry.total} survived (${pct}%)${flagLabel}`);
+    }
+  }
+
+  if (input.silence && input.silence.length > 0) {
+    lines.push('');
+    lines.push('## Gone quiet');
+    for (const entry of input.silence) {
+      lines.push(`- ${entry.tag}: silent for ${entry.silentDays} days (was accessed ${entry.priorAccessCount} times before)`);
+    }
+  }
+
+  if (input.drift && input.drift.length > 0) {
+    lines.push('');
+    lines.push('## Drift');
+    for (const entry of input.drift) {
+      const pct = Math.round(Math.abs(entry.magnitude) * 100);
+      const arrow = entry.direction === 'strengthening' ? '+' : '-';
+      lines.push(`- ${entry.tag}: ${entry.direction} (${arrow}${pct}%, avg weight ${entry.priorAvgWeight.toFixed(2)} -> ${entry.currentAvgWeight.toFixed(2)}, ${entry.memoryCount} memories)`);
     }
   }
 

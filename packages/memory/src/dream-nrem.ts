@@ -15,6 +15,8 @@ import type { Generator } from './generator.js';
 import type { Memory } from './types.js';
 import { findDuplicate } from './dedup.js';
 import { classifyValence } from './valence.js';
+import { findGoneQuiet, type SilenceEntry } from './silence.js';
+import { detectDrift, type DriftEntry } from './drift.js';
 
 const PRUNE_THRESHOLD = 0.05;
 const CALIBRATION_AGE_DAYS = 7;
@@ -36,6 +38,8 @@ export interface NremResult {
   dedupProposals: number;
   valenceBackfilled: number;
   sourceCalibration: SourceCalibrationEntry[];
+  silence: SilenceEntry[];
+  drift: DriftEntry[];
   errors: string[];
 }
 
@@ -57,6 +61,8 @@ export class NremPhase {
       dedupProposals: 0,
       valenceBackfilled: 0,
       sourceCalibration: [],
+      silence: [],
+      drift: [],
       errors: [],
     };
 
@@ -129,6 +135,20 @@ export class NremPhase {
       result.sourceCalibration = this._computeSourceCalibration();
     } catch (e) {
       result.errors.push(`calibration: ${(e as Error).message}`);
+    }
+
+    // Step 6: Silence detection — tag domains that went dark
+    try {
+      result.silence = findGoneQuiet(this.store);
+    } catch (e) {
+      result.errors.push(`silence: ${(e as Error).message}`);
+    }
+
+    // Step 7: Drift detection — belief structure shifting over time
+    try {
+      result.drift = detectDrift(this.store);
+    } catch (e) {
+      result.errors.push(`drift: ${(e as Error).message}`);
     }
 
     result.duration = Date.now() - start;
