@@ -2330,6 +2330,7 @@
       else overlay.classList.add('hidden');
     }
     if (e.key === 'Escape') {
+      if (state.signalOverlayOpen) { closeSignalOverlay(); return; }
       hideCtxMenu();
       document.getElementById('settings-overlay').classList.add('hidden');
       var searchInput = document.querySelector('.search-pill input');
@@ -2547,16 +2548,153 @@
     }).catch(function() {});
   }
 
+  // ===== SIGNAL OVERLAY =====
   function openSignalOverlay() {
     state.signalOverlayOpen = true;
     document.getElementById('signal-dimmer').classList.add('open');
     document.getElementById('signal-overlay').classList.add('open');
+    loadSignalData();
   }
 
   function closeSignalOverlay() {
     state.signalOverlayOpen = false;
     document.getElementById('signal-dimmer').classList.remove('open');
     document.getElementById('signal-overlay').classList.remove('open');
+  }
+
+  function loadSignalData() {
+    Promise.all([
+      api('/api/dream/journal/latest').catch(function() { return null; }),
+      api('/api/dream/seeds/pending').catch(function() { return []; }),
+      api('/api/dream/hindsight/pending').catch(function() { return []; }),
+      api('/api/dream/tensions').catch(function() { return []; }),
+      api('/api/dream/pressure').catch(function() { return { score: 0 }; }),
+    ]).then(function(results) {
+      state.latestJournal = results[0];
+      state.pendingSeeds = Array.isArray(results[1]) ? results[1] : [];
+      state.pendingHindsight = Array.isArray(results[2]) ? results[2] : [];
+      state.tensions = Array.isArray(results[3]) ? results[3] : [];
+      state.sleepPressure = results[4].score || 0;
+      state.sleepPressureComponents = results[4].components || null;
+      renderSignalOverlay();
+    });
+  }
+
+  document.getElementById('signal-dimmer').addEventListener('click', function() {
+    closeSignalOverlay();
+  });
+
+  function renderSignalOverlay() {
+    var overlay = document.getElementById('signal-overlay');
+    clearEl(overlay);
+
+    // Handle
+    var handle = el('div', { className: 'signal-overlay-handle' });
+    handle.appendChild(el('div', { className: 'signal-overlay-handle-bar' }));
+    overlay.appendChild(handle);
+
+    // Header
+    var header = el('div', { className: 'signal-overlay-header' });
+
+    var headerRow = el('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' } });
+    headerRow.appendChild(el('div', { className: 'signal-label', textContent: 'signal' }));
+    var largeSonar = initSonarLarge();
+    headerRow.appendChild(largeSonar);
+    header.appendChild(headerRow);
+
+    // Journal headline
+    if (state.latestJournal && state.latestJournal.content) {
+      var headlineText = extractJournalHeadline(state.latestJournal.content);
+      var headline = el('div', { className: 'journal-headline' });
+      headline.textContent = headlineText;
+      header.appendChild(headline);
+
+      var timeStr = new Date(state.latestJournal.createdAt).toLocaleString();
+      header.appendChild(el('div', { className: 'journal-time', textContent: timeStr }));
+    } else {
+      var headline2 = el('div', { className: 'journal-headline' });
+      headline2.textContent = 'No dream cycles yet. The system will dream when sleep pressure builds.';
+      header.appendChild(headline2);
+    }
+
+    overlay.appendChild(header);
+
+    // Body (scrollable sections)
+    var body = el('div', { className: 'signal-overlay-body' });
+
+    // Section: What changed
+    if (state.latestJournal) {
+      var changesSection = buildChangesSection(state.latestJournal.content);
+      if (changesSection) body.appendChild(changesSection);
+    }
+
+    // Section: Dream seed (Task 7 will add buildSeedSection)
+    if (state.pendingSeeds.length > 0 && typeof buildSeedSection === 'function') {
+      body.appendChild(buildSeedSection(state.pendingSeeds[0]));
+    }
+
+    // Section: Tension (Task 8 will add buildTensionSection)
+    if (state.tensions.length > 0 && typeof buildTensionSection === 'function') {
+      for (var ti = 0; ti < Math.min(state.tensions.length, 3); ti++) {
+        body.appendChild(buildTensionSection(state.tensions[ti]));
+      }
+    }
+
+    // Section: Hindsight (Task 8 will add buildHindsightSection)
+    if (state.pendingHindsight.length > 0 && typeof buildHindsightSection === 'function') {
+      body.appendChild(buildHindsightSection(state.pendingHindsight[0]));
+    }
+
+    // Section: Graph health (Task 9 will add buildGraphHealthSection)
+    if (typeof buildGraphHealthSection === 'function') {
+      body.appendChild(buildGraphHealthSection());
+    }
+
+    overlay.appendChild(body);
+  }
+
+  function extractJournalHeadline(content) {
+    if (!content) return 'Dream cycle completed. Open to review.';
+    var lines = content.split('\n');
+    var pastFrontmatter = false;
+    var seenDash = false;
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i].trim();
+      if (line === '---') {
+        if (!seenDash) { seenDash = true; continue; }
+        pastFrontmatter = true;
+        continue;
+      }
+      if (pastFrontmatter && line && !line.startsWith('#') && !line.startsWith('-') && !line.startsWith('|')) {
+        return line;
+      }
+    }
+    return 'Dream cycle completed. Open to review.';
+  }
+
+  function buildChangesSection(content) {
+    if (!content) return null;
+    var section = el('div', { className: 'signal-section' });
+    section.appendChild(el('div', { className: 'signal-section-label', textContent: 'what changed' }));
+
+    var list = el('ul', { className: 'signal-change-list' });
+    var lines = content.split('\n');
+    var inChanges = false;
+    var count = 0;
+
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i].trim();
+      if (line === '## What changed') { inChanges = true; continue; }
+      if (line.startsWith('## ') && inChanges) break;
+      if (inChanges && line.startsWith('- ')) {
+        list.appendChild(el('li', { textContent: line.slice(2) }));
+        count++;
+      }
+    }
+
+    if (count === 0) return null;
+    section.appendChild(list);
+    return section;
   }
 
   // ===== MAIN LOOP =====
