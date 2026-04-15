@@ -1642,10 +1642,57 @@
     var scroll = el('div', { className: 'inspector-scroll' });
 
     if (!state.selectedMemory) {
-      var empty = el('div', { className: 'inspector-empty' });
-      empty.appendChild(el('div', { className: 'inspector-empty-icon', textContent: '\u25C7' }));
-      empty.appendChild(el('div', { textContent: 'Select a node to inspect' }));
-      scroll.appendChild(empty);
+      var dream = el('div', { className: 'inspector-dream' });
+
+      // Sonar echo
+      var sonarEcho = el('div', { className: 'sonar-wrap', style: { marginBottom: '16px', padding: '0' } });
+      sonarEcho.addEventListener('click', function() { openSignalOverlay(); });
+      dream.appendChild(sonarEcho);
+
+      // One-liner from latest journal
+      if (state.latestJournal && state.latestJournal.content) {
+        var oneliner = el('div', { className: 'inspector-dream-oneliner' });
+        oneliner.textContent = extractJournalHeadline(state.latestJournal.content);
+        oneliner.addEventListener('click', function() { openSignalOverlay(); });
+        dream.appendChild(oneliner);
+      }
+
+      // Graph health compact
+      var healthRow = el('div', { className: 'inspector-dream-health' });
+      var compactStats = [
+        { v: state.memoryCount, l: 'memories' },
+        { v: state.edgeCount, l: 'edges' },
+        { v: state.avgStrength.toFixed(2), l: 'avg wt' },
+      ];
+      for (var hsi = 0; hsi < compactStats.length; hsi++) {
+        var hs = el('div', { className: 'inspector-dream-stat' });
+        hs.appendChild(el('div', { className: 'inspector-dream-stat-value', textContent: String(compactStats[hsi].v) }));
+        hs.appendChild(el('div', { className: 'inspector-dream-stat-label', textContent: compactStats[hsi].l }));
+        healthRow.appendChild(hs);
+      }
+      dream.appendChild(healthRow);
+
+      // Pinned tensions
+      if (state.pinnedTensions.length > 0) {
+        dream.appendChild(el('div', { className: 'signal-section-label', textContent: 'pinned tensions' }));
+        for (var pti = 0; pti < state.pinnedTensions.length; pti++) {
+          (function(pt, idx) {
+            var ptCard = el('div', { className: 'pinned-tension' });
+            ptCard.textContent = '"' + truncate(pt.memoryA, 40) + '" \u2194 "' + truncate(pt.memoryB, 40) + '"';
+            var dismissPt = el('button', { className: 'pinned-tension-dismiss', textContent: '\u00d7' });
+            dismissPt.addEventListener('click', function(e) {
+              e.stopPropagation();
+              state.pinnedTensions.splice(idx, 1);
+              localStorage.setItem('ff-pinned-tensions', JSON.stringify(state.pinnedTensions));
+              renderInspector();
+            });
+            ptCard.appendChild(dismissPt);
+            dream.appendChild(ptCard);
+          })(state.pinnedTensions[pti], pti);
+        }
+      }
+
+      scroll.appendChild(dream);
       panel.appendChild(scroll);
       renderArtifactsZone(panel);
       return;
@@ -2548,6 +2595,12 @@
     }).catch(function() {});
   }
 
+  function loadLatestJournal() {
+    return api('/api/dream/journal/latest').then(function(data) {
+      state.latestJournal = data;
+    }).catch(function() {});
+  }
+
   // ===== SIGNAL OVERLAY =====
   function openSignalOverlay() {
     state.signalOverlayOpen = true;
@@ -3030,7 +3083,7 @@
     renderInspector();
     renderStatusbar();
 
-    Promise.all([loadGraph(), loadStatus(), loadGuardian(), loadArtifacts(), loadSleepPressure()]).then(function() {
+    Promise.all([loadGraph(), loadStatus(), loadGuardian(), loadArtifacts(), loadSleepPressure(), loadLatestJournal()]).then(function() {
       connectSSE();
     });
 
