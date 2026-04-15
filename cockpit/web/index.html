@@ -2461,7 +2461,27 @@
     es.addEventListener('memory:created', function(e) {
       try {
         var mem = JSON.parse(e.data);
-        addNodeFromMemory(mem);
+        if (state.nodeMap.has(mem.id)) return;
+        state.nodeMap.set(mem.id, mem);
+        state.nodes.push(mem);
+        state.memoryCount = state.nodes.length;
+        if (cy) {
+          cy.add({
+            group: 'nodes',
+            data: {
+              id: mem.id,
+              content: mem.content,
+              tags: mem.tags || [],
+              strength: mem.strength || 1.0,
+              valence: mem.valence || 'neutral',
+              memoryType: mem.memoryType || 'semantic',
+              visualWeight: 0,
+            },
+            position: { x: (Math.random() - 0.5) * 400, y: (Math.random() - 0.5) * 400 },
+          });
+        }
+        renderSidebar();
+        renderStatusbar();
       } catch(err) { /* ignore */ }
     });
 
@@ -2470,6 +2490,16 @@
         var mem = JSON.parse(e.data);
         var existing = state.nodeMap.get(mem.id);
         if (existing) Object.assign(existing, mem);
+        if (cy) {
+          var cyNode = cy.getElementById(mem.id);
+          if (cyNode.length) {
+            cyNode.data('strength', mem.strength);
+            cyNode.data('content', mem.content);
+            cyNode.data('tags', mem.tags);
+            cyNode.data('valence', mem.valence);
+            cyNode.data('memoryType', mem.memoryType);
+          }
+        }
         if (state.selectedId === mem.id) {
           state.selectedMemory = existing;
           renderInspector();
@@ -2480,7 +2510,23 @@
     es.addEventListener('memory:deleted', function(e) {
       try {
         var data = JSON.parse(e.data);
-        removeNode(data.id || data);
+        var id = data.id || data;
+        state.nodes = state.nodes.filter(function(n) { return n.id !== id; });
+        state.nodeMap.delete(id);
+        state.edges = state.edges.filter(function(edge) {
+          var src = edge.sourceId || edge.source_id || edge.source;
+          var tgt = edge.targetId || edge.target_id || edge.target;
+          return src !== id && tgt !== id;
+        });
+        if (state.selectedId === id) selectNode(null);
+        state.memoryCount = state.nodes.length;
+        state.edgeCount = state.edges.length;
+        if (cy) {
+          var cyNode = cy.getElementById(id);
+          if (cyNode.length) cy.remove(cyNode);
+        }
+        renderSidebar();
+        renderStatusbar();
       } catch(err) { /* ignore */ }
     });
 
@@ -2489,6 +2535,22 @@
         var edge = JSON.parse(e.data);
         state.edges.push(edge);
         state.edgeCount = state.edges.length;
+        if (cy) {
+          var sourceId = edge.sourceId || edge.source_id;
+          var targetId = edge.targetId || edge.target_id;
+          if (cy.getElementById(sourceId).length && cy.getElementById(targetId).length) {
+            cy.add({
+              group: 'edges',
+              data: {
+                id: edge.id,
+                source: sourceId,
+                target: targetId,
+                relationType: edge.relationType || edge.relation_type || 'related',
+                weight: edge.weight || 1.0,
+              },
+            });
+          }
+        }
         renderStatusbar();
       } catch(err) { /* ignore */ }
     });
@@ -2496,9 +2558,13 @@
     es.addEventListener('edge:deleted', function(e) {
       try {
         var data = JSON.parse(e.data);
-        var id = data.id || data;
+        var id = data.edgeId || data.id || data;
         state.edges = state.edges.filter(function(edge) { return edge.id !== id; });
         state.edgeCount = state.edges.length;
+        if (cy) {
+          var cyEdge = cy.getElementById(id);
+          if (cyEdge.length) cy.remove(cyEdge);
+        }
         renderStatusbar();
       } catch(err) { /* ignore */ }
     });
