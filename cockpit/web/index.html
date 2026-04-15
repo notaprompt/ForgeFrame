@@ -9,6 +9,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100;200;300;400;500;600&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.30.4/cytoscape.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/cytoscape-fcose@2.2.0/cytoscape-fcose.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/cytoscape-expand-collapse@4.1.0/cytoscape-expand-collapse.min.js"></script>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -2878,6 +2879,74 @@
     cy.on('mouseout', 'node', function(evt) {
       if (!evt.target.isParent()) evt.target.style('label', '');
     });
+
+    // Expand-collapse for compound nodes
+    if (typeof cy.expandCollapse === 'function') {
+      var ecApi = cy.expandCollapse({
+        layoutBy: {
+          name: 'fcose',
+          animate: true,
+          animationDuration: 600,
+          randomize: false,
+          nodeDimensionsIncludeLabels: true,
+          nodeRepulsion: function() { return 4000; },
+          idealEdgeLength: function() { return 60; },
+          nestingFactor: 0.15,
+        },
+        fisheye: false,
+        animate: true,
+        animationDuration: 600,
+        undoable: false,
+        cueEnabled: false,
+      });
+
+      // Collapse all clusters initially for clean overview
+      setTimeout(function() {
+        var parents = cy.nodes(':parent');
+        if (parents.length > 0) {
+          try { ecApi.collapseAll(); } catch(e) { /* ignore if already collapsed */ }
+        }
+      }, 1200);
+
+      // Double-click to toggle expand/collapse
+      cy.on('dbltap', ':parent', function(evt) {
+        var node = evt.target;
+        if (ecApi.isCollapsible(node)) {
+          ecApi.collapse(node);
+        } else if (ecApi.isExpandable(node)) {
+          ecApi.expand(node);
+        }
+      });
+
+      // Zoom threshold: auto-expand nearest cluster at 2.5x, collapse all below 1.0x
+      var lastZoom = cy.zoom();
+      cy.on('zoom', function() {
+        var zoom = cy.zoom();
+
+        if (zoom >= 2.5 && lastZoom < 2.5) {
+          var extent = cy.extent();
+          var cx = (extent.x1 + extent.x2) / 2;
+          var ccy = (extent.y1 + extent.y2) / 2;
+          var closestParent = null;
+          var closestDist = Infinity;
+          cy.nodes(':parent').forEach(function(p) {
+            if (!ecApi.isExpandable(p)) return;
+            var pos = p.position();
+            var d = Math.sqrt(Math.pow(pos.x - cx, 2) + Math.pow(pos.y - ccy, 2));
+            if (d < closestDist) { closestDist = d; closestParent = p; }
+          });
+          if (closestParent) {
+            try { ecApi.expand(closestParent); } catch(e) {}
+          }
+        }
+
+        if (zoom < 1.0 && lastZoom >= 1.0) {
+          try { ecApi.collapseAll(); } catch(e) {}
+        }
+
+        lastZoom = zoom;
+      });
+    }
   }
 
   function updateCytoscapeTheme() {
