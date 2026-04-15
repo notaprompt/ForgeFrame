@@ -885,7 +885,7 @@
     transition: opacity 0.3s;
   }
   .sonar-wrap:hover { opacity: 0.8; }
-  .sonar-canvas-small { width: 120px; height: 32px; }
+  .sonar-canvas-small { width: 140px; height: 28px; }
   .sonar-canvas-large { width: 300px; height: 80px; }
   .inspector-dream { padding: 16px; }
   .inspector-dream-oneliner {
@@ -1613,35 +1613,13 @@
     var panel = document.getElementById('inspector');
     clearEl(panel);
 
-    // Header
-    var hdr = el('div', { className: 'inspector-header' });
-    hdr.appendChild(el('span', { className: 'inspector-title', textContent: 'Inspector' }));
-    var closeBtn = el('span', { className: 'inspector-close', textContent: '\u00d7' });
-    closeBtn.addEventListener('click', function() { selectNode(null); });
-    hdr.appendChild(closeBtn);
-    panel.appendChild(hdr);
-
-    // Tabs
-    var tabs = el('div', { className: 'inspector-tabs' });
-    var tabNames = ['memory', 'edges', 'history'];
-    for (var ti = 0; ti < tabNames.length; ti++) {
-      (function(t) {
-        var tab = el('div', {
-          className: 'tab' + (state.inspectorTab === t ? ' active' : ''),
-          textContent: t.charAt(0).toUpperCase() + t.slice(1),
-        });
-        tab.addEventListener('click', function() {
-          state.inspectorTab = t;
-          renderInspector();
-        });
-        tabs.appendChild(tab);
-      })(tabNames[ti]);
-    }
-    panel.appendChild(tabs);
-
-    var scroll = el('div', { className: 'inspector-scroll' });
-
+    // Dream surface mode — no tabs, no "Inspector" title
     if (!state.selectedMemory) {
+      var dreamHdr = el('div', { className: 'inspector-header' });
+      dreamHdr.appendChild(el('span', { className: 'inspector-title', textContent: 'Signal' }));
+      panel.appendChild(dreamHdr);
+
+      var scroll = el('div', { className: 'inspector-scroll' });
       var dream = el('div', { className: 'inspector-dream' });
 
       // Sonar echo
@@ -1650,12 +1628,15 @@
       dream.appendChild(sonarEcho);
 
       // One-liner from latest journal
+      var oneliner = el('div', { className: 'inspector-dream-oneliner' });
       if (state.latestJournal && state.latestJournal.content) {
-        var oneliner = el('div', { className: 'inspector-dream-oneliner' });
         oneliner.textContent = extractJournalHeadline(state.latestJournal.content);
-        oneliner.addEventListener('click', function() { openSignalOverlay(); });
-        dream.appendChild(oneliner);
+      } else {
+        oneliner.textContent = 'No dream cycles yet. Click to open Signal.';
+        oneliner.style.color = 'var(--t3)';
       }
+      oneliner.addEventListener('click', function() { openSignalOverlay(); });
+      dream.appendChild(oneliner);
 
       // Graph health compact
       var healthRow = el('div', { className: 'inspector-dream-health' });
@@ -1697,6 +1678,33 @@
       renderArtifactsZone(panel);
       return;
     }
+
+    // Normal inspector mode — header + tabs + memory detail
+    var hdr = el('div', { className: 'inspector-header' });
+    hdr.appendChild(el('span', { className: 'inspector-title', textContent: 'Inspector' }));
+    var closeBtn = el('span', { className: 'inspector-close', textContent: '\u00d7' });
+    closeBtn.addEventListener('click', function() { selectNode(null); });
+    hdr.appendChild(closeBtn);
+    panel.appendChild(hdr);
+
+    var tabs = el('div', { className: 'inspector-tabs' });
+    var tabNames = ['memory', 'edges', 'history'];
+    for (var ti = 0; ti < tabNames.length; ti++) {
+      (function(t) {
+        var tab = el('div', {
+          className: 'tab' + (state.inspectorTab === t ? ' active' : ''),
+          textContent: t.charAt(0).toUpperCase() + t.slice(1),
+        });
+        tab.addEventListener('click', function() {
+          state.inspectorTab = t;
+          renderInspector();
+        });
+        tabs.appendChild(tab);
+      })(tabNames[ti]);
+    }
+    panel.appendChild(tabs);
+
+    var scroll = el('div', { className: 'inspector-scroll' });
 
     var mem = state.selectedMemory;
 
@@ -2204,9 +2212,10 @@
       r = 196; g = 149; b = 106;
     }
 
-    // Dimension 2: Amplitude from sleep pressure (0-100 mapped to 15%-90% of height)
+    // Dimension 2: Amplitude from sleep pressure (0-100 mapped to 35%-90% of height)
+    // Minimum 35% ensures the wave is always visible even at zero pressure
     var normalizedPressure = Math.min(1, Math.max(0, pressure / 80));
-    var amplitude = (0.15 + normalizedPressure * 0.75) * (h / 2);
+    var amplitude = (0.35 + normalizedPressure * 0.55) * (h / 2);
 
     // Dimension 3: Frequency from urgency (calm=slow, warm=medium, trapped=fast)
     var freq;
@@ -2214,15 +2223,15 @@
     else if (guardianTemp < 0.6) freq = 1.5 + (guardianTemp - 0.3) * 5;
     else freq = 3 + (guardianTemp - 0.6) * 5;
 
-    var lineWidth = w > 400 ? 2 : 1.5;
-    ctx.strokeStyle = 'rgba(' + r + ',' + g + ',' + b + ',0.7)';
+    var lineWidth = w > 400 ? 2.5 : 2;
+    ctx.strokeStyle = 'rgba(' + r + ',' + g + ',' + b + ',0.9)';
     ctx.lineWidth = lineWidth;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
 
     ctx.save();
-    ctx.shadowColor = 'rgba(' + r + ',' + g + ',' + b + ',0.3)';
-    ctx.shadowBlur = 8;
+    ctx.shadowColor = 'rgba(' + r + ',' + g + ',' + b + ',0.5)';
+    ctx.shadowBlur = 12;
 
     ctx.beginPath();
     var midY = h / 2;
