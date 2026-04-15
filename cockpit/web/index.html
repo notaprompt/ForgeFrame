@@ -2664,6 +2664,225 @@
     }).catch(function() {});
   }
 
+  // ===== CYTOSCAPE GRAPH =====
+  var cy = null;
+
+  var TRIM_TAG_COLORS = {
+    principle: '#8aab7f', voice: '#8aab7f',
+    decision: '#b8965a', pattern: '#b8965a',
+    observation: '#8b7355', entity: '#8b7355',
+    thread: '#c4956a', skill: '#c4956a',
+    milestone: '#8b7355', evaluation: '#b8965a',
+  };
+
+  function getTrimTagColor(tags) {
+    for (var i = 0; i < tags.length; i++) {
+      if (TRIM_TAG_COLORS[tags[i]]) return TRIM_TAG_COLORS[tags[i]];
+    }
+    return '#8b7355';
+  }
+
+  function cyNodeRadius(visualWeight) {
+    return Math.max(6, Math.min(24, 6 + visualWeight * 1.5));
+  }
+
+  function buildCytoscapeStylesheet() {
+    var isDark = state.theme === 'ink' || state.theme === 'void';
+    var edgeColor = isDark ? 'rgba(232,230,225,0.08)' : 'rgba(139,115,85,0.12)';
+    var labelBg = isDark ? 'rgba(30,30,35,0.85)' : 'rgba(240,238,230,0.85)';
+    var labelColor = isDark ? 'rgba(232,230,225,0.7)' : 'rgba(28,25,23,0.6)';
+    var clusterLabelColor = isDark ? 'rgba(232,230,225,0.35)' : 'rgba(28,25,23,0.35)';
+
+    return [
+      { selector: 'node[^parent]', style: {
+        'background-color': function(ele) { return getTrimTagColor(ele.data('tags') || []); },
+        'background-opacity': function(ele) { return Math.max(0.25, ele.data('strength') || 0.5); },
+        'width': function(ele) { return cyNodeRadius(ele.data('visualWeight') || 0) * 2; },
+        'height': function(ele) { return cyNodeRadius(ele.data('visualWeight') || 0) * 2; },
+        'label': '',
+        'border-width': function(ele) {
+          var v = ele.data('valence');
+          return (v === 'charged' || v === 'grounding') ? 2 : 0;
+        },
+        'border-color': function(ele) {
+          var v = ele.data('valence');
+          if (v === 'charged') return '#b8965a';
+          if (v === 'grounding') return '#8aab7f';
+          return 'transparent';
+        },
+        'shape': function(ele) {
+          return ele.data('memoryType') === 'artifact' ? 'diamond' : 'ellipse';
+        },
+      }},
+      { selector: 'node:selected', style: {
+        'border-width': 3,
+        'border-color': '#b8965a',
+        'overlay-opacity': 0.08,
+        'overlay-color': '#b8965a',
+      }},
+      { selector: ':parent', style: {
+        'background-opacity': function(ele) { return Math.max(0.03, (ele.data('avgStrength') || 0.5) * 0.08); },
+        'background-color': function(ele) {
+          var trimTag = ele.data('dominantTrimTag') || 'observation';
+          return TRIM_TAG_COLORS[trimTag] || '#8b7355';
+        },
+        'border-width': 1,
+        'border-style': 'dashed',
+        'border-color': function(ele) {
+          var trimTag = ele.data('dominantTrimTag') || 'observation';
+          return TRIM_TAG_COLORS[trimTag] || '#8b7355';
+        },
+        'border-opacity': 0.25,
+        'label': function(ele) { return (ele.data('label') || '').toUpperCase(); },
+        'font-family': "'JetBrains Mono', monospace",
+        'font-size': 9,
+        'font-weight': 500,
+        'color': clusterLabelColor,
+        'text-valign': 'bottom',
+        'text-margin-y': 8,
+        'padding': 20,
+        'shape': 'round-rectangle',
+        'corner-radius': 12,
+      }},
+      { selector: 'edge', style: {
+        'width': function(ele) {
+          var rt = ele.data('relationType');
+          return (rt === 'led-to' || rt === 'contradicts' || rt === 'supersedes') ? 1.5 : 0.8;
+        },
+        'line-color': edgeColor,
+        'line-opacity': function(ele) { return Math.max(0.04, Math.min(0.25, (ele.data('weight') || 0.5) * 0.25)); },
+        'curve-style': 'bezier',
+        'target-arrow-shape': 'none',
+      }},
+    ];
+  }
+
+  function initCytoscape(graphData) {
+    var container = document.getElementById('cy-container');
+    if (!container) return;
+
+    var elements = [];
+
+    // Cluster parent nodes
+    for (var ci = 0; ci < graphData.clusters.length; ci++) {
+      var cluster = graphData.clusters[ci];
+      elements.push({
+        group: 'nodes',
+        data: {
+          id: cluster.id,
+          label: cluster.label,
+          memberCount: cluster.memberCount,
+          avgStrength: cluster.avgStrength,
+          dominantTrimTag: cluster.dominantTrimTag,
+        },
+      });
+    }
+
+    // Memory nodes
+    for (var ni = 0; ni < graphData.nodes.length; ni++) {
+      var node = graphData.nodes[ni];
+      elements.push({
+        group: 'nodes',
+        data: {
+          id: node.id,
+          parent: node.parent || undefined,
+          content: node.content,
+          tags: node.tags,
+          strength: node.strength,
+          valence: node.valence,
+          memoryType: node.memoryType,
+          visualWeight: node.visualWeight,
+          createdAt: node.createdAt,
+        },
+      });
+    }
+
+    // Edges
+    for (var ei = 0; ei < graphData.edges.length; ei++) {
+      var edge = graphData.edges[ei];
+      elements.push({
+        group: 'edges',
+        data: {
+          id: edge.id,
+          source: edge.source,
+          target: edge.target,
+          relationType: edge.relationType,
+          weight: edge.weight,
+        },
+      });
+    }
+
+    if (cy) cy.destroy();
+
+    cy = cytoscape({
+      container: container,
+      elements: elements,
+      style: buildCytoscapeStylesheet(),
+      layout: {
+        name: 'fcose',
+        animate: true,
+        animationDuration: 1000,
+        animationEasing: 'ease-out-cubic',
+        quality: 'default',
+        randomize: true,
+        nodeDimensionsIncludeLabels: true,
+        packComponents: true,
+        nodeRepulsion: function() { return 8000; },
+        idealEdgeLength: function() { return 80; },
+        edgeElasticity: function() { return 0.1; },
+        nestingFactor: 0.15,
+        gravity: 0.25,
+        gravityRange: 1.5,
+        numIter: 2500,
+      },
+      minZoom: 0.1,
+      maxZoom: 5,
+      wheelSensitivity: 0.3,
+    });
+
+    // Node click -> select in inspector
+    cy.on('tap', 'node', function(evt) {
+      var node = evt.target;
+      if (node.isParent()) return;
+      selectNode(node.id());
+    });
+
+    // Background click -> deselect
+    cy.on('tap', function(evt) {
+      if (evt.target === cy) selectNode(null);
+    });
+
+    // Hover: show label
+    cy.on('mouseover', 'node', function(evt) {
+      var node = evt.target;
+      if (node.isParent()) return;
+      var content = node.data('content') || '';
+      var line = content.split('\n')[0] || '';
+      if (line.length > 60) line = line.slice(0, 57) + '...';
+      var isDark = state.theme === 'ink' || state.theme === 'void';
+      node.style({
+        'label': line,
+        'font-size': 10,
+        'font-family': "'Inter', sans-serif",
+        'font-weight': 300,
+        'color': isDark ? 'rgba(232,230,225,0.85)' : 'rgba(28,25,23,0.85)',
+        'text-background-opacity': 0.8,
+        'text-background-color': isDark ? 'rgba(30,30,35,0.9)' : 'rgba(240,238,230,0.9)',
+        'text-background-padding': '4px',
+        'text-background-shape': 'roundrectangle',
+      });
+    });
+
+    cy.on('mouseout', 'node', function(evt) {
+      if (!evt.target.isParent()) evt.target.style('label', '');
+    });
+  }
+
+  function updateCytoscapeTheme() {
+    if (!cy) return;
+    cy.style().fromJson(buildCytoscapeStylesheet()).update();
+  }
+
   // ===== SIGNAL OVERLAY =====
   function openSignalOverlay() {
     state.signalOverlayOpen = true;
