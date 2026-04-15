@@ -2697,6 +2697,102 @@
     return section;
   }
 
+  function buildSeedSection(seed) {
+    var section = el('div', { className: 'signal-section' });
+    section.appendChild(el('div', { className: 'signal-section-label', textContent: 'two memories that have never met' }));
+
+    var card = el('div', { className: 'seed-card' });
+
+    // Memory A
+    var memA = seed.memories[0];
+    var memAEl = el('div', { className: 'seed-memory' });
+    var aTag = (memA.tags && memA.tags[0] ? memA.tags[0] : 'memory');
+    var aDays = Math.floor((Date.now() - memA.createdAt) / 86400000);
+    var aTimeLabel = aDays < 7 ? aDays + ' days ago' : Math.floor(aDays / 7) + ' weeks ago';
+    memAEl.appendChild(el('div', { className: 'seed-memory-tag', textContent: aTag + ' / ' + aTimeLabel }));
+    memAEl.appendChild(el('div', { className: 'seed-memory-content', textContent: truncate(memA.content, 120) }));
+    card.appendChild(memAEl);
+
+    // Bridge
+    var bridge = el('div', { className: 'seed-bridge' });
+    var bridgeLine = el('div', { className: 'seed-bridge-line' });
+    bridgeLine.appendChild(el('div', { className: 'seed-bridge-dot' }));
+    bridge.appendChild(bridgeLine);
+    card.appendChild(bridge);
+
+    // Memory B
+    var memB = seed.memories[1];
+    var memBEl = el('div', { className: 'seed-memory' });
+    var bTag = (memB.tags && memB.tags[0] ? memB.tags[0] : 'memory');
+    var bDays = Math.floor((Date.now() - memB.createdAt) / 86400000);
+    var bTimeLabel = bDays < 7 ? bDays + ' days ago' : Math.floor(bDays / 7) + ' weeks ago';
+    memBEl.appendChild(el('div', { className: 'seed-memory-tag', textContent: bTag + ' / ' + bTimeLabel }));
+    memBEl.appendChild(el('div', { className: 'seed-memory-content', textContent: truncate(memB.content, 120) }));
+    card.appendChild(memBEl);
+
+    section.appendChild(card);
+    section.appendChild(el('div', { className: 'seed-prompt', textContent: 'do these know each other?' }));
+
+    // Thread input (hidden, blooms on "real")
+    var threadInput = el('input', {
+      className: 'seed-thread-input',
+      type: 'text',
+      placeholder: 'what\'s the thread?',
+    });
+    section.appendChild(threadInput);
+
+    // Grade buttons
+    var grades = el('div', { className: 'grade-btns' });
+
+    var fireBtn = el('button', { className: 'grade-btn fire', textContent: 'real' });
+    fireBtn.addEventListener('click', function() {
+      threadInput.classList.add('visible');
+      setTimeout(function() { threadInput.focus(); }, 100);
+      var submitted = false;
+      function submit() {
+        if (submitted) return;
+        submitted = true;
+        gradeSeed(seed, 'fire', threadInput.value || null);
+        section.style.opacity = '0.4';
+        section.style.pointerEvents = 'none';
+      }
+      threadInput.addEventListener('keydown', function(e) { if (e.key === 'Enter') submit(); });
+      threadInput.addEventListener('blur', function() { setTimeout(submit, 200); });
+    });
+    grades.appendChild(fireBtn);
+
+    var mehBtn = el('button', { className: 'grade-btn', textContent: 'meh' });
+    mehBtn.addEventListener('click', function() {
+      gradeSeed(seed, 'shrug', null);
+      section.style.opacity = '0.4';
+      section.style.pointerEvents = 'none';
+    });
+    grades.appendChild(mehBtn);
+
+    var missBtn = el('button', { className: 'grade-btn miss', textContent: 'nothing' });
+    missBtn.addEventListener('click', function() {
+      gradeSeed(seed, 'miss', null);
+      section.style.opacity = '0.4';
+      section.style.pointerEvents = 'none';
+    });
+    grades.appendChild(missBtn);
+
+    section.appendChild(grades);
+    return section;
+  }
+
+  function gradeSeed(seed, grade, thread) {
+    var body = {
+      grade: grade,
+      seedMemoryIds: seed.memories.map(function(m) { return m.id; }),
+    };
+    if (thread) body.thread = thread;
+    api('/api/dream/seeds/' + seed.id + '/grade', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }).catch(function() {});
+  }
+
   // ===== MAIN LOOP =====
   function mainLoop(time) {
     drawThermal(time);
