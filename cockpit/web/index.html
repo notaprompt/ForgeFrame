@@ -2131,6 +2131,94 @@
     }
   }
 
+  // ===== SONAR WAVEFORM =====
+  function drawSonar(canvas, guardianTemp, guardianState, pressure, time) {
+    var ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    var w = canvas.width;
+    var h = canvas.height;
+    ctx.clearRect(0, 0, w, h);
+
+    // Dimension 1: Color from Guardian state (sage -> gold -> terra)
+    var r, g, b;
+    if (guardianTemp < 0.3) {
+      var t = guardianTemp / 0.3;
+      r = Math.round(138 + t * (184 - 138));
+      g = Math.round(171 + t * (150 - 171));
+      b = Math.round(127 + t * (90 - 127));
+    } else if (guardianTemp < 0.6) {
+      var t2 = (guardianTemp - 0.3) / 0.3;
+      r = Math.round(184 + t2 * (196 - 184));
+      g = Math.round(150 + t2 * (149 - 150));
+      b = Math.round(90 + t2 * (106 - 90));
+    } else {
+      r = 196; g = 149; b = 106;
+    }
+
+    // Dimension 2: Amplitude from sleep pressure (0-100 mapped to 15%-90% of height)
+    var normalizedPressure = Math.min(1, Math.max(0, pressure / 80));
+    var amplitude = (0.15 + normalizedPressure * 0.75) * (h / 2);
+
+    // Dimension 3: Frequency from urgency (calm=slow, warm=medium, trapped=fast)
+    var freq;
+    if (guardianTemp < 0.3) freq = 0.5 + guardianTemp * 3;
+    else if (guardianTemp < 0.6) freq = 1.5 + (guardianTemp - 0.3) * 5;
+    else freq = 3 + (guardianTemp - 0.6) * 5;
+
+    var lineWidth = w > 400 ? 2 : 1.5;
+    ctx.strokeStyle = 'rgba(' + r + ',' + g + ',' + b + ',0.7)';
+    ctx.lineWidth = lineWidth;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    ctx.save();
+    ctx.shadowColor = 'rgba(' + r + ',' + g + ',' + b + ',0.3)';
+    ctx.shadowBlur = 8;
+
+    ctx.beginPath();
+    var midY = h / 2;
+    var phase = time * freq * 0.003;
+
+    for (var x = 0; x < w; x++) {
+      var t3 = x / w;
+      var envelope = Math.sin(t3 * Math.PI);
+      var y = midY + amplitude * envelope * (
+        Math.sin(phase + t3 * Math.PI * 4) * 0.7 +
+        Math.sin(phase * 1.3 + t3 * Math.PI * 7) * 0.2 +
+        Math.sin(phase * 0.7 + t3 * Math.PI * 2) * 0.1
+      );
+      if (x === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  var sonarSmallCanvas = null;
+  var sonarLargeCanvas = null;
+
+  function initSonarSmall() {
+    var existing = document.getElementById('sonar-small');
+    if (existing) existing.remove();
+    var c = document.createElement('canvas');
+    c.id = 'sonar-small';
+    c.className = 'sonar-canvas-small';
+    c.width = 240; c.height = 64;
+    sonarSmallCanvas = c;
+    return c;
+  }
+
+  function initSonarLarge() {
+    var existing = document.getElementById('sonar-large');
+    if (existing) existing.remove();
+    var c = document.createElement('canvas');
+    c.id = 'sonar-large';
+    c.className = 'sonar-canvas-large';
+    c.width = 600; c.height = 160;
+    sonarLargeCanvas = c;
+    return c;
+  }
+
   // ===== STATUSBAR =====
   function renderStatusbar() {
     var sb = document.getElementById('statusbar');
@@ -2160,6 +2248,12 @@
     sText.textContent = 'guardian \u00b7 ' + (state.connected ? state.guardianState + ' \u00b7 watching' : 'offline');
     sg.appendChild(sText);
     sb.appendChild(sg);
+
+    var sonarWrap = el('div', { className: 'sonar-wrap' });
+    var sonarCanvas = initSonarSmall();
+    sonarWrap.appendChild(sonarCanvas);
+    sonarWrap.addEventListener('click', function() { openSignalOverlay(); });
+    sb.appendChild(sonarWrap);
   }
 
   // ===== SETTINGS =====
@@ -2446,11 +2540,32 @@
     }).catch(function() {});
   }
 
+  function loadSleepPressure() {
+    return api('/api/dream/pressure').then(function(data) {
+      state.sleepPressure = data.score || 0;
+      state.sleepPressureComponents = data.components || null;
+    }).catch(function() {});
+  }
+
+  function openSignalOverlay() {
+    state.signalOverlayOpen = true;
+    document.getElementById('signal-dimmer').classList.add('open');
+    document.getElementById('signal-overlay').classList.add('open');
+  }
+
+  function closeSignalOverlay() {
+    state.signalOverlayOpen = false;
+    document.getElementById('signal-dimmer').classList.remove('open');
+    document.getElementById('signal-overlay').classList.remove('open');
+  }
+
   // ===== MAIN LOOP =====
   function mainLoop(time) {
     drawThermal(time);
     simulateForces();
     drawGraph();
+    if (sonarSmallCanvas) drawSonar(sonarSmallCanvas, state.guardianTemp, state.guardianState, state.sleepPressure, time);
+    if (sonarLargeCanvas && state.signalOverlayOpen) drawSonar(sonarLargeCanvas, state.guardianTemp, state.guardianState, state.sleepPressure, time);
     requestAnimationFrame(mainLoop);
   }
 
@@ -2477,7 +2592,7 @@
     renderInspector();
     renderStatusbar();
 
-    Promise.all([loadGraph(), loadStatus(), loadGuardian(), loadArtifacts()]).then(function() {
+    Promise.all([loadGraph(), loadStatus(), loadGuardian(), loadArtifacts(), loadSleepPressure()]).then(function() {
       connectSSE();
     });
 
