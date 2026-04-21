@@ -1007,7 +1007,9 @@
   'use strict';
 
   // ===== CONFIG =====
-  var API_BASE = 'http://localhost:3001';
+  // Empty string = same-origin relative fetches. Works for localhost, LAN IP,
+  // Tailscale hostname, and any future origin the page is served from.
+  var API_BASE = '';
   var TOKEN_KEY = 'ff-token';
 
   // ===== SAFE DOM HELPERS =====
