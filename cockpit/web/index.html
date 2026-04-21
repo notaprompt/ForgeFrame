@@ -1089,6 +1089,20 @@
   var API_BASE = '';
   var TOKEN_KEY = 'ff-token';
 
+  // Accept token via ?t= URL param so you can bookmark a URL that auto-logs in.
+  // The PWA start_url can include this; every home-screen launch auto-authenticates.
+  // URL is scrubbed client-side after read so the token doesn't persist in history.
+  (function hydrateTokenFromUrl() {
+    var qs = new URLSearchParams(location.search);
+    var t = qs.get('t') || qs.get('token');
+    if (t) {
+      try { localStorage.setItem(TOKEN_KEY, t); } catch (e) {}
+      qs.delete('t'); qs.delete('token');
+      var clean = location.pathname + (qs.toString() ? '?' + qs.toString() : '') + location.hash;
+      try { history.replaceState({}, '', clean); } catch (e) {}
+    }
+  })();
+
   // ===== SAFE DOM HELPERS =====
   // Clear all children without innerHTML
   function clearEl(node) {
