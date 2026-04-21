@@ -754,6 +754,40 @@
     .feed-row .feed-ts, .feed-row .feed-kind { width: auto; }
   }
 
+  /* ===== MOBILE / iOS PHONE LAYOUT ===== */
+  @media (max-width: 768px) {
+    .cockpit {
+      grid-template-columns: 1fr;
+      grid-template-rows: 1fr 36px;
+      padding: env(safe-area-inset-top, 0px) 4px env(safe-area-inset-bottom, 0px) 4px;
+      gap: 4px;
+    }
+    .sidebar, .inspector { display: none; }
+    .main-area { grid-column: 1; grid-row: 1; }
+    .statusbar { grid-column: 1; grid-row: 2; font-size: 10px; padding: 0 8px; }
+    /* Command bar becomes narrower + floats above content */
+    .cmd-wrap { top: 6px; left: 8px; right: 8px; transform: none; max-width: none; width: auto; }
+    .cmd-input { font-size: 14px; padding: 8px 10px; }
+    /* View toggle repositioned for thumb reach */
+    .view-toggle { top: 54px; right: 8px; left: auto; transform: none; font-size: 11px; }
+    /* Feed view: more breathing room, full-bleed */
+    .feed-view { padding: 100px 0 24px; }
+    .feed-stream { padding: 0; }
+    /* Auth card full-width */
+    .auth-card { width: calc(100vw - 32px); max-width: 420px; padding: 24px; }
+    .auth-input { font-size: 16px; }
+    /* Hide graph+list panes' heavy chrome — they're not useful on phone */
+    #cy-container, #list-view { display: none !important; }
+    /* Force feed-first on phones regardless of saved state */
+    body.force-feed #feed-view { display: block; }
+  }
+
+  /* iOS standalone PWA specifics (runs when launched from home screen) */
+  @media all and (display-mode: standalone) {
+    body { overscroll-behavior: none; }
+    .cockpit { padding-top: env(safe-area-inset-top, 20px); }
+  }
+
   /* ===== SIGNAL OVERLAY ===== */
   .signal-overlay {
     position: fixed;
