@@ -14,6 +14,7 @@ import type { GuardianSignals, MemoryEdge, MemoryStore, Generator, SeedGrade, Hi
 import type { ServerEvents } from './events.js';
 import { bearerAuth } from './auth.js';
 import { loadToken } from './token.js';
+import { sendPush } from './push.js';
 
 export interface HttpServerOptions {
   store: MemoryStore;
@@ -40,6 +41,31 @@ export function startHttpServer({ store, events, port, hostname, generator }: Ht
 
   const token = loadToken();
   app.use('/api/*', bearerAuth(token));
+
+  // --- Phase 1: ntfy push bridge for guardian:alert (once per server lifecycle) ---
+  events.on('guardian:alert', async (evt) => {
+    if (evt.severity === 'info') return;
+    try {
+      await sendPush({
+        title: `Vision · ${evt.severity.toUpperCase()}`,
+        body: evt.summary,
+        priority: evt.severity === 'error' ? 'urgent' : 'high',
+        tags: ['warning', evt.severity],
+      });
+    } catch (err) {
+      console.error('[push] guardian:alert push failed:', err);
+    }
+  });
+
+  // --- Phase 1: dev-only event emit endpoint for smoke-testing (gated by env) ---
+  if (process.env.FORGEFRAME_DEV_EMIT === '1') {
+    app.post('/api/events/emit', async (c) => {
+      const body = await c.req.json();
+      const { kind, payload } = body;
+      (events.emit as any)(kind, payload);
+      return c.json({ ok: true });
+    });
+  }
 
   // --- Memory write endpoint ---
 
@@ -638,6 +664,29 @@ export function startHttpServer({ store, events, port, hostname, generator }: Ht
         });
       });
 
+      // --- Phase 1: Vision Feed Tab event mirrors ---
+
+      on('guardian:alert', (evt) => {
+        stream.writeSSE({ event: 'guardian:alert', data: JSON.stringify(evt) });
+      });
+
+      on('distillery:intake', (evt) => {
+        stream.writeSSE({ event: 'distillery:intake', data: JSON.stringify(evt) });
+      });
+
+      on('heartbeat', (evt) => {
+        stream.writeSSE({ event: 'heartbeat', data: JSON.stringify(evt) });
+      });
+
+      for (const k of [
+        'daemon:task:merged',
+        'daemon:task:dispatched',
+        'daemon:review:queued',
+        'daemon:trust:denied',
+      ] as const) {
+        on(k, (evt) => stream.writeSSE({ event: k, data: JSON.stringify(evt) }));
+      }
+
       // Keep alive
       const keepAlive = setInterval(() => {
         stream.writeSSE({ event: 'ping', data: '' });
@@ -698,6 +747,53 @@ export function startHttpServer({ store, events, port, hostname, generator }: Ht
     }
 
     return c.text('Cockpit not found. Set FORGEFRAME_COCKPIT_PATH or build the cockpit package.', 404);
+  });
+
+  // --- PWA manifest + home-screen icons (Phase 1 Stream B) ---
+
+  // Resolve a cockpit-web asset path using the same candidate-list pattern as
+  // the '/' handler above, so overrides and monorepo layouts behave identically.
+  async function resolveCockpitAsset(relative: string): Promise<string | null> {
+    const { existsSync } = await import('fs');
+    const { resolve, dirname } = await import('path');
+    const { fileURLToPath } = await import('url');
+    const __dirname = dirname(fileURLToPath(import.meta.url));
+
+    const cockpitOverride = process.env.FORGEFRAME_COCKPIT_PATH;
+    const candidates = cockpitOverride
+      ? [resolve(dirname(cockpitOverride), relative)]
+      : [
+          resolve(__dirname, '../../cockpit/web', relative),
+          resolve(__dirname, '../../../cockpit/web', relative),
+        ];
+
+    for (const candidate of candidates) {
+      if (existsSync(candidate)) return candidate;
+    }
+    return null;
+  }
+
+  app.get('/manifest.webmanifest', async (c) => {
+    const { readFile } = await import('fs/promises');
+    const p = await resolveCockpitAsset('manifest.webmanifest');
+    if (!p) return c.text('not found', 404);
+    const buf = await readFile(p);
+    c.header('content-type', 'application/manifest+json');
+    return c.body(buf);
+  });
+
+  // Only these icon basenames are served; prevents path traversal.
+  const ICON_NAMES = new Set(['512', '192', 'apple-180']);
+
+  app.get('/icon-:name{[a-zA-Z0-9-]+}.png', async (c) => {
+    const name = c.req.param('name');
+    if (!name || !ICON_NAMES.has(name)) return c.text('not found', 404);
+    const { readFile } = await import('fs/promises');
+    const p = await resolveCockpitAsset(`icon-${name}.png`);
+    if (!p) return c.text('not found', 404);
+    const buf = await readFile(p);
+    c.header('content-type', 'image/png');
+    return c.body(buf);
   });
 
   const server = serve({ fetch: app.fetch, port, hostname: hostname ?? '127.0.0.1' });

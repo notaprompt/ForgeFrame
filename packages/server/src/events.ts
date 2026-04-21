@@ -143,6 +143,15 @@ export interface ServerEventMap {
   'guardian:dev_active': [event: GuardianDevActiveEvent];
   'guardian:sleep_pressure': [pressure: SleepPressure];
   'valence:classified': [event: ValenceClassifiedEvent];
+  // --- Phase 1: Vision Feed Tab + push ---
+  'guardian:alert': [event: { severity: 'info' | 'warn' | 'error'; summary: string; source?: string }];
+  'distillery:intake': [event: { id: string; url?: string; title?: string; source: string }];
+  'heartbeat': [event: { tick: number; ts: number }];
+  // --- Reserved for Daemon-v1 Week 2 ---
+  'daemon:task:merged': [event: { taskId: string; branch: string; summary: string }];
+  'daemon:task:dispatched': [event: { taskId: string; title: string; trust: 'auto' | 'ask' | 'never' }];
+  'daemon:review:queued': [event: { reviewId: string; taskId: string; skepticRating?: string; summary: string }];
+  'daemon:trust:denied': [event: { taskId: string; pattern: string; reason: string }];
 }
 
 export class ServerEvents extends EventEmitter<ServerEventMap> {}
