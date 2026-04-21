@@ -88,7 +88,7 @@ export function startHttpServer({ store, events, port, hostname, generator }: Ht
     if (evt.severity === 'info') return;
     try {
       await sendPush({
-        title: `Vision · ${evt.severity.toUpperCase()}`,
+        title: `Vision [${evt.severity.toUpperCase()}]`,
         body: evt.summary,
         priority: evt.severity === 'error' ? 'urgent' : 'high',
         tags: ['warning', evt.severity],
