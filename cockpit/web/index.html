@@ -2282,6 +2282,27 @@
     }
 
     // --- cold-start fallback: memory cards ---
+    // If we have neither events nor memories, show a placeholder so the
+    // screen isn't blank.
+    if (!state.nodes || state.nodes.length === 0) {
+      var placeholder = document.createElement('div');
+      placeholder.style.cssText = 'padding:40px 20px; text-align:center; color:var(--t4); font-size:13px; line-height:1.6;';
+      var dot = document.createElement('span');
+      dot.textContent = '●';
+      dot.style.cssText = 'display:inline-block; animation: pulse 2s infinite; color:var(--gold); font-size:20px;';
+      placeholder.appendChild(dot);
+      var msg = document.createElement('div');
+      msg.textContent = 'waiting for signal';
+      msg.style.marginTop = '12px';
+      placeholder.appendChild(msg);
+      var hint = document.createElement('div');
+      hint.style.cssText = 'margin-top:20px; font-size:11px; color:var(--t5); opacity:0.6;';
+      hint.textContent = 'the creature is listening';
+      placeholder.appendChild(hint);
+      fv.appendChild(placeholder);
+      return;
+    }
+
     var sorted = state.nodes.slice().sort(function(a, b) {
       var da = a.createdAt ? new Date(a.createdAt).getTime() : 0;
       var db = b.createdAt ? new Date(b.createdAt).getTime() : 0;
