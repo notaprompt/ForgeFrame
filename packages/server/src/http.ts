@@ -782,19 +782,18 @@ export function startHttpServer({ store, events, port, hostname, generator }: Ht
     return c.body(buf);
   });
 
-  // Only these icon basenames are served; prevents path traversal.
-  const ICON_NAMES = new Set(['512', '192', 'apple-180']);
-
-  app.get('/icon-:name{[a-zA-Z0-9-]+}.png', async (c) => {
-    const name = c.req.param('name');
-    if (!name || !ICON_NAMES.has(name)) return c.text('not found', 404);
+  // Explicit routes per icon; prevents path traversal by construction.
+  const serveIcon = (name: string) => async (c: any) => {
     const { readFile } = await import('fs/promises');
     const p = await resolveCockpitAsset(`icon-${name}.png`);
     if (!p) return c.text('not found', 404);
     const buf = await readFile(p);
     c.header('content-type', 'image/png');
     return c.body(buf);
-  });
+  };
+  app.get('/icon-512.png', serveIcon('512'));
+  app.get('/icon-192.png', serveIcon('192'));
+  app.get('/icon-apple-180.png', serveIcon('apple-180'));
 
   const server = serve({ fetch: app.fetch, port, hostname: hostname ?? '127.0.0.1' });
 
