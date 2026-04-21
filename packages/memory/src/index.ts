@@ -63,3 +63,18 @@ export type {
 } from './dream-schedule.js';
 export { computeClusters } from './clustering.js';
 export type { ClusteredGraph, ClusteredNode, ClusterInfo } from './clustering.js';
+export {
+  ME_STATE_TAG,
+  ME_STATE_CONTENT_PREFIX,
+  encodeMeStateContent,
+  parseMeStateContent,
+  saveMeState,
+  loadMeStates,
+  loadLatestMeState,
+} from './me-state.js';
+export type {
+  MeStatePayload,
+  SaveMeStateOptions,
+  LoadMeStateOptions,
+  MeStateRow,
+} from './me-state.js';
