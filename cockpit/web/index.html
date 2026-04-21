@@ -769,7 +769,10 @@
     .sidebar, .inspector, .statusbar,
     .cmd-wrap, .view-toggle,
     #cy-container, #list-view,
+    #search-pill, .search-pill,
     .disconnected-banner { display: none !important; }
+    /* Force feed visible on phone regardless of activeView state */
+    .feed-view, .feed-view.active { display: block !important; }
     .glass { background: transparent; border: none; box-shadow: none; border-radius: 0; backdrop-filter: none; -webkit-backdrop-filter: none; }
     .main-area { height: 100dvh; }
 
