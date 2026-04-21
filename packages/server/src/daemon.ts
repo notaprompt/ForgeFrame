@@ -9,7 +9,7 @@ import { readFileSync, writeFileSync, unlinkSync, existsSync } from 'fs';
 import { resolve } from 'path';
 import { homedir } from 'os';
 import type { Tier } from '@forgeframe/core';
-import { MemoryStore, OllamaEmbedder } from '@forgeframe/memory';
+import { MemoryStore, OllamaEmbedder, maybeDream, summarizeDreamResult } from '@forgeframe/memory';
 import { loadConfig } from './config.js';
 import { ServerEvents } from './events.js';
 import { startHttpServer } from './http.js';
@@ -111,11 +111,51 @@ export async function serveDaemon(opts: DaemonOptions): Promise<void> {
   // Vision master index decision (calmer than 1s, less Feed Tab chatter).
   // Overridable via FORGEFRAME_ORCHESTRATOR_INTERVAL_MS.
   const intervalMs = Number(process.env.FORGEFRAME_ORCHESTRATOR_INTERVAL_MS) || 5000;
+
+  // Phase 2 Task 2.2 — dream-tick callback. Every `dreamTickEvery` heartbeats
+  // the orchestrator invokes this, which reads sleep pressure and, if it
+  // crosses the NREM or REM threshold, runs the corresponding phase. All
+  // errors are swallowed into the DreamResult and surfaced as a structured
+  // 'dream:schedule:result' event — the orchestrator's tick loop must not
+  // be torn down by a bad dream cycle.
+  //
+  // Two-way door: remove the three onDreamTick / dreamTickEvery lines and
+  // the daemon reverts to Task 2.1 behavior exactly.
+  const onDreamTick = async () => {
+    try {
+      const result = await maybeDream({ store });
+      const summary = summarizeDreamResult(result);
+      if (result.phase !== 'awake' || result.error) {
+        process.stderr.write(`[dream] ${summary}\n`);
+      }
+      // Emit a compact schedule-result event for Feed Tab. Also emit the
+      // phase-specific complete event on success so existing subscribers
+      // that already listen for NremResult/RemResult shapes keep working.
+      events.emit('dream:schedule:result', {
+        phase: result.phase,
+        pressureScore: result.pressure.score,
+        summary,
+        error: result.error,
+      });
+      if (!result.error && result.phase === 'nrem' && result.nremResult) {
+        events.emit('dream:nrem:complete', result.nremResult);
+      } else if (!result.error && result.phase === 'rem' && result.remResult) {
+        events.emit('dream:rem:complete', result.remResult);
+      }
+    } catch (err) {
+      // maybeDream is defensive and shouldn't throw, but belt-and-suspenders.
+      const message = err instanceof Error ? err.message : String(err);
+      process.stderr.write(`[dream] maybeDream threw: ${message}\n`);
+    }
+  };
+
   const stopOrchestrator = startOrchestrator({
     intervalMs,
     emit: (kind, payload) => events.emit(kind as any, payload),
+    onDreamTick,
+    dreamTickEvery: 6, // every ~30s at the 5s tick interval
   });
-  process.stderr.write(`[orchestrator] heartbeat every ${intervalMs}ms\n`);
+  process.stderr.write(`[orchestrator] heartbeat every ${intervalMs}ms, dream every 6 ticks\n`);
 
   // Phase 2 Task 2.3 — arm triggers at daemon startup.
   //

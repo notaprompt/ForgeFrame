@@ -154,6 +154,19 @@ export interface ServerEventMap {
   'daemon:trust:denied': [event: { taskId: string; pattern: string; reason: string }];
   // --- Phase 2 Task 2.3: triggers armed at daemon startup ---
   'trigger:fired': [event: { task: string; cwd: string; tier?: string; source: 'cron' | 'watch' | 'unknown' }];
+  // --- Phase 2 Task 2.2: orchestrator-driven dream schedule result ---
+  // Emitted by the orchestrator onDreamTick branch after every dream
+  // evaluation, whether or not a phase actually ran. Kept distinct from
+  // `dream:nrem:complete` / `dream:rem:complete` because those carry the
+  // full NremResult/RemResult shape on success only — this event also
+  // covers the graceful-failure path and the no-op `awake` path so Feed
+  // Tab can render a compact line without reconstructing context.
+  'dream:schedule:result': [event: {
+    phase: 'nrem' | 'rem' | 'awake';
+    pressureScore: number;
+    summary: string;
+    error?: string;
+  }];
 }
 
 export class ServerEvents extends EventEmitter<ServerEventMap> {}
