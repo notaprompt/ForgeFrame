@@ -8,11 +8,13 @@
 import { readFileSync, writeFileSync, unlinkSync, existsSync } from 'fs';
 import { resolve } from 'path';
 import { homedir } from 'os';
+import type { Tier } from '@forgeframe/core';
 import { MemoryStore, OllamaEmbedder } from '@forgeframe/memory';
 import { loadConfig } from './config.js';
 import { ServerEvents } from './events.js';
 import { startHttpServer } from './http.js';
 import { startOrchestrator } from './orchestrator.js';
+import { TriggerManager } from './triggers.js';
 
 const FORGEFRAME_DIR = resolve(homedir(), '.forgeframe');
 
@@ -115,10 +117,26 @@ export async function serveDaemon(opts: DaemonOptions): Promise<void> {
   });
   process.stderr.write(`[orchestrator] heartbeat every ${intervalMs}ms\n`);
 
+  // Phase 2 Task 2.3 — arm triggers at daemon startup.
+  //
+  // Two-way door: removing this block leaves the daemon functioning exactly
+  // as it did before Task 2.3. strict:true makes a malformed triggers.json
+  // throw at load time instead of silently booting with an empty list — the
+  // class of bug that hides for months.
+  const triggerManager = armTriggers({ events });
+
   process.stderr.write(`ForgeFrame daemon running (pid ${process.pid}, port ${opts.port})\n`);
 
   function shutdown() {
     stopOrchestrator();
+    if (triggerManager) {
+      try {
+        triggerManager.stop();
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        process.stderr.write(`[triggers] stop failed: ${message}\n`);
+      }
+    }
     try { unlinkSync(PID_PATH); } catch {}
     try { unlinkSync(PORT_PATH); } catch {}
     store.close();
@@ -132,4 +150,71 @@ export async function serveDaemon(opts: DaemonOptions): Promise<void> {
 
   // Block until signal
   await new Promise(() => {});
+}
+
+// -- Phase 2 Task 2.3: trigger wiring -----------------------------------------
+
+/**
+ * Default runner used when no real agent is available. Emits a
+ * `trigger:fired` event onto the server bus and logs a structured line so
+ * downstream tools (forgeframe-doctor, Cockpit Feed Tab) can observe
+ * activity. Runtime errors inside this runner are caught upstream by
+ * TriggerManager's per-trigger try/catch — they log and continue without
+ * tearing down the scheduler.
+ */
+export function makePlaceholderTriggerRunner(
+  events: ServerEvents,
+  source: 'cron' | 'watch' | 'unknown' = 'unknown',
+): (task: string, cwd: string, tier?: Tier) => Promise<void> {
+  return async (task: string, cwd: string, tier?: Tier) => {
+    process.stderr.write(
+      `[triggers] fired task="${task}" cwd="${cwd}" tier="${tier ?? 'default'}"\n`,
+    );
+    events.emit('trigger:fired', { task, cwd, tier, source });
+  };
+}
+
+export interface ArmTriggersOptions {
+  events: ServerEvents;
+  configDir?: string;
+  /** Override default runner (used in tests to avoid placeholder side-effects). */
+  runner?: (task: string, cwd: string, tier?: Tier) => Promise<void>;
+}
+
+/**
+ * Construct a TriggerManager using strict load semantics, attach the
+ * runner, start the schedulers/watchers, and emit a single structured
+ * summary line.
+ *
+ * Contract:
+ *   - Missing triggers.json → logs `[triggers] none configured` and returns
+ *     a started-but-empty manager (still safe to stop()).
+ *   - Valid triggers.json  → logs `[triggers] armed N triggers (C cron, W watch)`.
+ *   - Malformed triggers.json → throws. Caller (serveDaemon) lets this
+ *     propagate so launchd surfaces a non-zero exit.
+ */
+export function armTriggers(opts: ArmTriggersOptions): TriggerManager {
+  const configDir = opts.configDir ?? FORGEFRAME_DIR;
+  const triggersPath = resolve(configDir, 'triggers.json');
+  const fileExists = existsSync(triggersPath);
+
+  // strict:true only when the file exists — an absent file is a normal
+  // first-run state, not a fatal error.
+  const manager = new TriggerManager({ configDir, strict: fileExists });
+
+  const runner = opts.runner ?? makePlaceholderTriggerRunner(opts.events);
+  manager.setRunner(runner);
+
+  manager.start();
+
+  if (!fileExists) {
+    process.stderr.write('[triggers] none configured\n');
+  } else {
+    const { total, cron, watch } = manager.counts();
+    process.stderr.write(
+      `[triggers] armed ${total} triggers (${cron} cron, ${watch} watch)\n`,
+    );
+  }
+
+  return manager;
 }

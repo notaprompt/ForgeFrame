@@ -328,6 +328,20 @@ class FileWatcher {
 
 // -- Trigger Manager --
 
+/**
+ * Options for constructing a TriggerManager.
+ *
+ * - `configDir`: directory containing triggers.json (defaults to ~/.forgeframe).
+ * - `strict`: when true, a malformed triggers.json throws at construction
+ *   instead of being silently swallowed. Use this path for daemon startup
+ *   where fail-loud is required. Tolerant loaders (ad-hoc CLI, MCP tooling)
+ *   should leave it false.
+ */
+export interface TriggerManagerOptions {
+  configDir?: string;
+  strict?: boolean;
+}
+
 export class TriggerManager {
   private _configDir: string;
   private _triggersPath: string;
@@ -335,14 +349,19 @@ export class TriggerManager {
   private _cron: CronScheduler;
   private _watcher: FileWatcher;
 
-  constructor(configDir?: string) {
-    this._configDir = configDir ?? resolve(homedir(), '.forgeframe');
+  constructor(options?: string | TriggerManagerOptions) {
+    // Backwards-compat: accept either a bare configDir string or an options
+    // object. Existing callers passing a string keep working unchanged.
+    const opts: TriggerManagerOptions =
+      typeof options === 'string' ? { configDir: options } : (options ?? {});
+
+    this._configDir = opts.configDir ?? resolve(homedir(), '.forgeframe');
     this._triggersPath = resolve(this._configDir, 'triggers.json');
     this._cron = new CronScheduler();
     this._watcher = new FileWatcher();
 
     this._cron.setUpdateCallback(() => this._save());
-    this._load();
+    this._load(opts.strict ?? false);
   }
 
   /**
@@ -412,6 +431,26 @@ export class TriggerManager {
     return [...this._triggers];
   }
 
+  /** Return only cron triggers. Read-only snapshot. */
+  getCronTriggers(): CronTrigger[] {
+    return this._triggers.filter((t): t is CronTrigger => t.type === 'cron');
+  }
+
+  /** Return only watch triggers. Read-only snapshot. */
+  getWatchTriggers(): WatchTrigger[] {
+    return this._triggers.filter((t): t is WatchTrigger => t.type === 'watch');
+  }
+
+  /**
+   * Count triggers by kind. Useful for structured startup logs
+   * (e.g. `[triggers] armed 3 triggers (1 cron, 2 watch)`).
+   */
+  counts(): { total: number; cron: number; watch: number } {
+    const cron = this.getCronTriggers().length;
+    const watch = this.getWatchTriggers().length;
+    return { total: cron + watch, cron, watch };
+  }
+
   /**
    * Start (or resume) all enabled triggers.
    * Call after daemon startup and after setRunner().
@@ -448,21 +487,63 @@ export class TriggerManager {
 
   // -- Persistence --
 
-  private _load(): void {
+  /**
+   * Load triggers.json from disk.
+   *
+   * Missing file → empty list (normal first-run state).
+   * Malformed file in strict mode → throws with context so the daemon can
+   * surface the failure at startup instead of booting with a silently
+   * empty trigger list. Non-strict mode preserves the legacy tolerant
+   * behaviour (log + continue).
+   */
+  private _load(strict: boolean): void {
     if (!existsSync(this._triggersPath)) {
       this._triggers = [];
       return;
     }
 
+    let raw: string;
     try {
-      const raw = readFileSync(this._triggersPath, 'utf-8');
-      const data = JSON.parse(raw) as TriggersFile;
-      this._triggers = Array.isArray(data.triggers) ? data.triggers : [];
+      raw = readFileSync(this._triggersPath, 'utf-8');
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
-      process.stderr.write(`[forge-triggers] Failed to load triggers.json: ${message}\n`);
+      if (strict) {
+        throw new Error(
+          `[forge-triggers] Failed to read ${this._triggersPath}: ${message}`,
+        );
+      }
+      process.stderr.write(`[forge-triggers] Failed to read triggers.json: ${message}\n`);
       this._triggers = [];
+      return;
     }
+
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(raw);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (strict) {
+        throw new Error(
+          `[forge-triggers] Malformed JSON in ${this._triggersPath}: ${message}`,
+        );
+      }
+      process.stderr.write(`[forge-triggers] Failed to parse triggers.json: ${message}\n`);
+      this._triggers = [];
+      return;
+    }
+
+    const data = parsed as Partial<TriggersFile>;
+    if (!data || typeof data !== 'object' || !Array.isArray(data.triggers)) {
+      if (strict) {
+        throw new Error(
+          `[forge-triggers] Unexpected shape in ${this._triggersPath}: expected { triggers: [...] }`,
+        );
+      }
+      this._triggers = [];
+      return;
+    }
+
+    this._triggers = data.triggers;
   }
 
   private _save(): void {

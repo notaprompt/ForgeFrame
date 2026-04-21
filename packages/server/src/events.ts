@@ -152,6 +152,8 @@ export interface ServerEventMap {
   'daemon:task:dispatched': [event: { taskId: string; title: string; trust: 'auto' | 'ask' | 'never' }];
   'daemon:review:queued': [event: { reviewId: string; taskId: string; skepticRating?: string; summary: string }];
   'daemon:trust:denied': [event: { taskId: string; pattern: string; reason: string }];
+  // --- Phase 2 Task 2.3: triggers armed at daemon startup ---
+  'trigger:fired': [event: { task: string; cwd: string; tier?: string; source: 'cron' | 'watch' | 'unknown' }];
 }
 
 export class ServerEvents extends EventEmitter<ServerEventMap> {}
