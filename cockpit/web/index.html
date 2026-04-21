@@ -2651,7 +2651,8 @@
     if (state.eventSource) {
       state.eventSource.close();
     }
-    var url = API_BASE + '/api/events';
+    // EventSource can't set Authorization headers; pass token as query param.
+    var url = API_BASE + '/api/events' + (state.token ? '?token=' + encodeURIComponent(state.token) : '');
     var es = new EventSource(url);
     state.eventSource = es;
 

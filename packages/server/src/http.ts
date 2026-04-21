@@ -40,7 +40,16 @@ export function startHttpServer({ store, events, port, hostname, generator }: Ht
   }));
 
   const token = loadToken();
-  app.use('/api/*', bearerAuth(token));
+  // Auth: Authorization: Bearer <token> for most endpoints. /api/events also accepts
+  // ?token=<token> because the browser's EventSource API can't send custom headers.
+  app.use('/api/*', async (c, next) => {
+    if (!token) return next();
+    const bearer = c.req.header('authorization')?.replace(/^Bearer\s+/i, '').trim();
+    if (bearer === token) return next();
+    const url = new URL(c.req.url);
+    if (url.pathname === '/api/events' && url.searchParams.get('token') === token) return next();
+    return c.text('Unauthorized', 401);
+  });
 
   // --- Phase 1: ntfy push bridge for guardian:alert (once per server lifecycle) ---
   events.on('guardian:alert', async (evt) => {
