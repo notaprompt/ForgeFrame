@@ -754,38 +754,78 @@
     .feed-row .feed-ts, .feed-row .feed-kind { width: auto; }
   }
 
-  /* ===== MOBILE / iOS PHONE LAYOUT ===== */
+  /* ===== MOBILE / iOS PHONE LAYOUT =====
+     Phone is feed-only. Kill every piece of chrome that isn't the stream.
+     Safe-area inset handles notch + home indicator. */
   @media (max-width: 768px) {
+    html, body { height: 100%; overflow: hidden; }
     .cockpit {
-      grid-template-columns: 1fr;
-      grid-template-rows: 1fr 36px;
-      padding: env(safe-area-inset-top, 0px) 4px env(safe-area-inset-bottom, 0px) 4px;
-      gap: 4px;
+      display: block;
+      padding: 0;
+      gap: 0;
+      height: 100vh;
+      height: 100dvh;
     }
-    .sidebar, .inspector { display: none; }
-    .main-area { grid-column: 1; grid-row: 1; }
-    .statusbar { grid-column: 1; grid-row: 2; font-size: 10px; padding: 0 8px; }
-    /* Command bar becomes narrower + floats above content */
-    .cmd-wrap { top: 6px; left: 8px; right: 8px; transform: none; max-width: none; width: auto; }
-    .cmd-input { font-size: 14px; padding: 8px 10px; }
-    /* View toggle repositioned for thumb reach */
-    .view-toggle { top: 54px; right: 8px; left: auto; transform: none; font-size: 11px; }
-    /* Feed view: more breathing room, full-bleed */
-    .feed-view { padding: 100px 0 24px; }
-    .feed-stream { padding: 0; }
-    /* Auth card full-width */
-    .auth-card { width: calc(100vw - 32px); max-width: 420px; padding: 24px; }
-    .auth-input { font-size: 16px; }
-    /* Hide graph+list panes' heavy chrome — they're not useful on phone */
-    #cy-container, #list-view { display: none !important; }
-    /* Force feed-first on phones regardless of saved state */
-    body.force-feed #feed-view { display: block; }
+    .sidebar, .inspector, .statusbar,
+    .cmd-wrap, .view-toggle,
+    #cy-container, #list-view,
+    .disconnected-banner { display: none !important; }
+    .glass { background: transparent; border: none; box-shadow: none; border-radius: 0; backdrop-filter: none; -webkit-backdrop-filter: none; }
+    .main-area { height: 100dvh; }
+
+    /* Feed becomes the single scroll surface, full-bleed */
+    .feed-view {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      padding: calc(env(safe-area-inset-top, 20px) + 16px) 0 calc(env(safe-area-inset-bottom, 0px) + 24px);
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      background: var(--bg, #f4f1eb);
+    }
+    .feed-stream { padding: 0 16px; max-width: none; }
+
+    /* Row: comfortable tap-height, readable sizes, stacked */
+    .feed-row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      grid-template-rows: auto auto;
+      gap: 2px 8px;
+      padding: 14px 4px;
+      border-bottom: 1px solid var(--t6);
+      font-size: 14px;
+      line-height: 1.35;
+    }
+    .feed-row .feed-kind {
+      grid-column: 1; grid-row: 1;
+      font-size: 11px; letter-spacing: 0.5px;
+      color: var(--gold);
+      width: auto; flex-shrink: 1;
+    }
+    .feed-row .feed-ts {
+      grid-column: 2; grid-row: 1;
+      font-size: 10px; color: var(--t4);
+      width: auto;
+    }
+    .feed-row .feed-body {
+      grid-column: 1 / -1; grid-row: 2;
+      font-size: 14px; color: var(--t1);
+      white-space: normal; overflow: visible; text-overflow: clip;
+      word-break: break-word;
+    }
+
+    /* Auth overlay: iOS-native feel */
+    .auth-card {
+      width: calc(100vw - 32px); max-width: 420px;
+      padding: 32px 24px;
+      margin: auto;
+    }
+    .auth-input { font-size: 17px; padding: 12px 14px; min-height: 44px; }
+    .auth-submit { font-size: 16px; padding: 14px; min-height: 48px; width: 100%; }
   }
 
   /* iOS standalone PWA specifics (runs when launched from home screen) */
   @media all and (display-mode: standalone) {
     body { overscroll-behavior: none; }
-    .cockpit { padding-top: env(safe-area-inset-top, 20px); }
   }
 
   /* ===== SIGNAL OVERLAY ===== */
