@@ -4,8 +4,14 @@
 
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import type { MemoryStore, MemoryRetriever, Session, Embedder, Generator } from '@forgeframe/memory';
-import { GuardianComputer, ConsolidationEngine, ContradictionEngine, buildRoadmap } from '@forgeframe/memory';
+import type { Memory, MemoryStore, MemoryRetriever, Session, Embedder, Generator, MeStatePayload } from '@forgeframe/memory';
+import {
+  GuardianComputer,
+  ConsolidationEngine,
+  ContradictionEngine,
+  buildRoadmap,
+  loadLatestMeState,
+} from '@forgeframe/memory';
 import type { ProvenanceLogger } from './provenance.js';
 import type { ServerEvents } from './events.js';
 import type { ServerConfig } from './config.js';
@@ -24,6 +30,90 @@ function toolError(err: unknown): ToolResult {
     content: [{ type: 'text' as const, text: JSON.stringify({ error: message }) }],
     isError: true,
   };
+}
+
+/** Compact memory shape for hydration — matches memory_roadmap's shape. */
+export interface HydrationMemory {
+  id: string;
+  content: string;
+  strength: number;
+  tags: string[];
+  createdAt: number;
+  lastAccessedAt: number;
+}
+
+export interface HydrationPayload {
+  me: MeStatePayload | null;
+  entrenched: HydrationMemory[];
+  active: HydrationMemory[];
+  drifting: HydrationMemory[];
+}
+
+function shapeHydrationMemory(m: Memory): HydrationMemory {
+  return {
+    id: m.id,
+    content: m.content.slice(0, 200),
+    strength: m.strength,
+    tags: m.tags,
+    createdAt: m.createdAt,
+    lastAccessedAt: m.lastAccessedAt,
+  };
+}
+
+function emptyHydration(): HydrationPayload {
+  return { me: null, entrenched: [], active: [], drifting: [] };
+}
+
+/**
+ * Build the session_start hydration payload by composing loadLatestMeState
+ * and buildRoadmap. Never throws — on failure returns an empty payload and
+ * logs a structured line prefixed `[session_start]`. Hydration is an
+ * add-on to session creation; it must not block session availability.
+ *
+ * Exported for direct testing.
+ */
+export async function buildSessionHydration(opts: {
+  store: MemoryStore;
+  /** Max memories per bucket. Default 10 — hydration stays lean. */
+  maxPerBucket?: number;
+  /** Structured logger. Defaults to console.warn with [session_start] prefix. */
+  log?: (line: string) => void;
+}): Promise<HydrationPayload> {
+  const {
+    store,
+    maxPerBucket = 10,
+    // eslint-disable-next-line no-console
+    log = (line: string) => console.warn(line),
+  } = opts;
+
+  const [meResult, roadmapResult] = await Promise.allSettled([
+    loadLatestMeState({ store }),
+    buildRoadmap({ store, maxPerBucket }),
+  ]);
+
+  const payload = emptyHydration();
+
+  if (meResult.status === 'fulfilled') {
+    payload.me = meResult.value?.payload ?? null;
+  } else {
+    const reason = meResult.reason instanceof Error
+      ? meResult.reason.message
+      : String(meResult.reason);
+    log(`[session_start] hydration me:state failed: ${reason}`);
+  }
+
+  if (roadmapResult.status === 'fulfilled') {
+    payload.entrenched = roadmapResult.value.entrenched.map(shapeHydrationMemory);
+    payload.active = roadmapResult.value.active.map(shapeHydrationMemory);
+    payload.drifting = roadmapResult.value.drifting.map(shapeHydrationMemory);
+  } else {
+    const reason = roadmapResult.reason instanceof Error
+      ? roadmapResult.reason.message
+      : String(roadmapResult.reason);
+    log(`[session_start] hydration roadmap failed: ${reason}`);
+  }
+
+  return payload;
 }
 
 export function registerTools(
@@ -275,7 +365,7 @@ export function registerTools(
 
   server.tool(
     'session_start',
-    'Start a new session, ending the current one if active',
+    'Start a new session, ending the current one if active. Returns the session plus a hydration payload: latest me:state snapshot and roadmap buckets (entrenched, active, drifting) so a fresh session boots oriented.',
     {
       metadata: z.record(z.unknown()).optional().describe('Arbitrary session metadata'),
     },
@@ -304,7 +394,12 @@ export function registerTools(
 
         events.emit('session:started', newSession.id);
 
-        return toolResult(newSession);
+        // Hydrate the session with me:state + roadmap buckets. Never throws:
+        // on failure returns an empty payload so callers always see the shape.
+        // Creating the session is primary; hydration is a bonus.
+        const hydration = await buildSessionHydration({ store });
+
+        return toolResult({ ...newSession, hydration });
       } catch (err) {
         return toolError(err);
       }
