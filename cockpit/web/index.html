@@ -4,6 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ForgeFrame Cockpit</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#0a0a0c">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Vision">
+<link rel="apple-touch-icon" href="/icon-apple-180.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100;200;300;400;500;600&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
@@ -712,6 +718,42 @@
     font-size: 10px; color: var(--t4);
   }
 
+  /* === FEED EVENT STREAM (Phase 1) === */
+  #feed-stream { display: flex; flex-direction: column; }
+  .feed-row {
+    display: flex; gap: 10px; padding: 6px 10px;
+    border-bottom: 1px solid var(--t6);
+    font-family: var(--font-mono); font-size: 11px;
+    align-items: baseline;
+  }
+  .feed-row .feed-ts {
+    color: var(--t4); width: 72px; flex-shrink: 0;
+  }
+  .feed-row .feed-kind {
+    color: var(--gold); width: 168px; flex-shrink: 0;
+    text-transform: lowercase; letter-spacing: 0.5px;
+  }
+  .feed-row .feed-body {
+    color: var(--t1);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .feed-row.k-guardian {
+    background: var(--danger-bg, rgba(200,50,50,0.08));
+  }
+  .feed-row.k-dream {
+    background: var(--cream-bg, rgba(230,220,200,0.06));
+  }
+  .feed-row.k-daemon {
+    background: var(--gold-bg, rgba(200,180,50,0.08));
+  }
+  .feed-row.k-memory {
+    background: transparent;
+  }
+  @media (max-width: 640px) {
+    .feed-row { flex-direction: column; gap: 2px; padding: 8px 12px; }
+    .feed-row .feed-ts, .feed-row .feed-kind { width: auto; }
+  }
+
   /* ===== SIGNAL OVERLAY ===== */
   .signal-overlay {
     position: fixed;
@@ -1045,7 +1087,14 @@
     drift: [],
     pinnedTensions: JSON.parse(localStorage.getItem('ff-pinned-tensions') || '[]'),
     sonarPhase: 0,
+    // Feed Tab live event stream (Phase 1)
+    feedEvents: [],
+    feedMaxRows: 500,
   };
+
+  // Honor ?view=feed|list|graph from URL (PWA start_url, shortcuts, deep links)
+  var urlView = new URLSearchParams(location.search).get('view');
+  if (urlView === 'feed' || urlView === 'list' || urlView === 'graph') state.activeView = urlView;
 
   // ===== API =====
   function authHeaders() {
@@ -2138,6 +2187,22 @@
   function renderFeedView() {
     var fv = document.getElementById('feed-view');
     clearEl(fv);
+
+    // Phase 1: if live event stream is non-empty, render it.
+    // Otherwise fall back to the memory-card cold-start view below.
+    if (state.feedEvents && state.feedEvents.length > 0) {
+      var stream = document.createElement('div');
+      stream.id = 'feed-stream';
+      fv.appendChild(stream);
+      var rows = state.feedEvents;
+      var limit = Math.min(rows.length, state.feedMaxRows || 500);
+      for (var r = 0; r < limit; r++) {
+        appendFeedRowEl(stream, rows[r]);
+      }
+      return;
+    }
+
+    // --- cold-start fallback: memory cards ---
     var sorted = state.nodes.slice().sort(function(a, b) {
       var da = a.createdAt ? new Date(a.createdAt).getTime() : 0;
       var db = b.createdAt ? new Date(b.createdAt).getTime() : 0;
@@ -2175,6 +2240,154 @@
         card.addEventListener('click', function() { selectNode(node.id); });
         fv.appendChild(card);
       })(sorted[i]);
+    }
+  }
+
+  // === Feed Tab live event stream helpers (Phase 1) ===
+
+  function feedFormatTs(ts) {
+    try {
+      var d = new Date(ts);
+      var hh = String(d.getHours()).padStart(2, '0');
+      var mm = String(d.getMinutes()).padStart(2, '0');
+      var ss = String(d.getSeconds()).padStart(2, '0');
+      return hh + ':' + mm + ':' + ss;
+    } catch (e) {
+      return '';
+    }
+  }
+
+  function feedCategoryClass(kind) {
+    if (!kind || typeof kind !== 'string') return '';
+    var head = kind.split(':')[0];
+    if (!head) return '';
+    return 'k-' + head;
+  }
+
+  function extractSummary(kind, payload) {
+    try {
+      if (payload == null) return kind;
+      if (kind && kind.indexOf('memory:') === 0) {
+        if (payload && typeof payload.content === 'string') {
+          return payload.content.slice(0, 120);
+        }
+        return JSON.stringify(payload).slice(0, 120);
+      }
+      if (kind && kind.indexOf('edge:') === 0) {
+        var src = payload.sourceId || payload.source_id || payload.source || '?';
+        var tgt = payload.targetId || payload.target_id || payload.target || '?';
+        return src + '\u2192' + tgt;
+      }
+      if (kind && kind.indexOf('dream:') === 0) {
+        return payload.concernSummary || payload.connectionSummary || payload.phase || kind;
+      }
+      if (kind && kind.indexOf('hermes:') === 0) {
+        return payload.taskSummary || payload.reason || kind;
+      }
+      if (kind === 'guardian:alert') {
+        return payload.summary || kind;
+      }
+      if (kind === 'guardian:update') {
+        if (payload.state) return String(payload.state);
+        if (payload.value !== undefined) return 'temp:' + payload.value;
+        return kind;
+      }
+      if (kind === 'distillery:intake') {
+        return payload.title || payload.url || payload.source || kind;
+      }
+      if (kind && kind.indexOf('daemon:') === 0) {
+        return payload.summary || payload.title || payload.taskId || kind;
+      }
+      if (kind === 'heartbeat') {
+        return 'tick=' + (payload.tick != null ? payload.tick : '?');
+      }
+      return JSON.stringify(payload).slice(0, 120);
+    } catch (e) {
+      return kind;
+    }
+  }
+
+  function appendFeedRowEl(container, row) {
+    var rowEl = document.createElement('div');
+    rowEl.className = 'feed-row';
+    var cat = feedCategoryClass(row.kind);
+    if (cat) rowEl.classList.add(cat);
+
+    var tsEl = document.createElement('span');
+    tsEl.className = 'feed-ts';
+    tsEl.textContent = feedFormatTs(row.ts);
+    rowEl.appendChild(tsEl);
+
+    var kindEl = document.createElement('span');
+    kindEl.className = 'feed-kind';
+    kindEl.textContent = row.kind || '';
+    rowEl.appendChild(kindEl);
+
+    var bodyEl = document.createElement('span');
+    bodyEl.className = 'feed-body';
+    bodyEl.textContent = row.summary == null ? '' : String(row.summary);
+    rowEl.appendChild(bodyEl);
+
+    container.appendChild(rowEl);
+    return rowEl;
+  }
+
+  function prependFeedRow(row) {
+    var fv = document.getElementById('feed-view');
+    if (!fv) return;
+    var stream = document.getElementById('feed-stream');
+    if (!stream) {
+      // cold-start fallback was rendered; swap to live stream container
+      clearEl(fv);
+      stream = document.createElement('div');
+      stream.id = 'feed-stream';
+      fv.appendChild(stream);
+    }
+    var rowEl = document.createElement('div');
+    rowEl.className = 'feed-row';
+    var cat = feedCategoryClass(row.kind);
+    if (cat) rowEl.classList.add(cat);
+
+    var tsEl = document.createElement('span');
+    tsEl.className = 'feed-ts';
+    tsEl.textContent = feedFormatTs(row.ts);
+    rowEl.appendChild(tsEl);
+
+    var kindEl = document.createElement('span');
+    kindEl.className = 'feed-kind';
+    kindEl.textContent = row.kind || '';
+    rowEl.appendChild(kindEl);
+
+    var bodyEl = document.createElement('span');
+    bodyEl.className = 'feed-body';
+    bodyEl.textContent = row.summary == null ? '' : String(row.summary);
+    rowEl.appendChild(bodyEl);
+
+    if (stream.firstChild) {
+      stream.insertBefore(rowEl, stream.firstChild);
+    } else {
+      stream.appendChild(rowEl);
+    }
+
+    var max = state.feedMaxRows || 500;
+    while (stream.childNodes.length > max) {
+      stream.removeChild(stream.lastChild);
+    }
+  }
+
+  function pushFeedEvent(kind, payload) {
+    var row = {
+      kind: kind,
+      ts: Date.now(),
+      summary: extractSummary(kind, payload),
+      payload: payload,
+    };
+    state.feedEvents.unshift(row);
+    if (state.feedEvents.length > (state.feedMaxRows || 500)) {
+      state.feedEvents.length = state.feedMaxRows || 500;
+    }
+    if (state.activeView === 'feed') {
+      prependFeedRow(row);
     }
   }
 
@@ -2633,6 +2846,41 @@
         var existing = state.nodeMap.get(data.memoryId);
         if (existing) existing.valence = data.valence;
       } catch(err) { /* ignore */ }
+    });
+
+    // === Feed Tab live event stream (Phase 1) ===
+    // Subscribe every contract-defined kind to push a row into state.feedEvents.
+    // This runs alongside the domain listeners above; it does not replace them.
+    var FEED_KINDS = [
+      // memory
+      'memory:created', 'memory:updated', 'memory:deleted', 'memory:promoted',
+      // edges
+      'edge:created', 'edge:deleted',
+      // dream
+      'dream:journal:written', 'dream:nrem:complete', 'dream:rem:complete',
+      'dream:seed:sent', 'dream:seed:graded', 'dream:tension:detected',
+      // hermes
+      'hermes:cycle:started', 'hermes:cycle:complete', 'hermes:task:executing',
+      // guardian
+      'guardian:update', 'guardian:sleep_pressure', 'guardian:dev_active', 'guardian:alert',
+      // valence
+      'valence:classified',
+      // consolidation / contradiction
+      'consolidation:proposed', 'consolidation:complete', 'consolidation:rejected',
+      'contradiction:scanned', 'contradiction:resolved',
+      // new in Phase 1
+      'distillery:intake', 'heartbeat',
+      // reserved for Daemon-v1
+      'daemon:task:dispatched', 'daemon:task:merged',
+      'daemon:review:queued', 'daemon:trust:denied',
+    ];
+    FEED_KINDS.forEach(function(kind) {
+      es.addEventListener(kind, function(e) {
+        try {
+          var payload = e && e.data ? JSON.parse(e.data) : null;
+          pushFeedEvent(kind, payload);
+        } catch(err) { /* ignore malformed SSE payloads */ }
+      });
     });
 
     es.onmessage = function() {};
