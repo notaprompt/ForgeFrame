@@ -12,6 +12,7 @@ import { MemoryStore, OllamaEmbedder } from '@forgeframe/memory';
 import { loadConfig } from './config.js';
 import { ServerEvents } from './events.js';
 import { startHttpServer } from './http.js';
+import { startOrchestrator } from './orchestrator.js';
 
 const FORGEFRAME_DIR = resolve(homedir(), '.forgeframe');
 
@@ -104,9 +105,20 @@ export async function serveDaemon(opts: DaemonOptions): Promise<void> {
   writeFileSync(PID_PATH, String(process.pid), 'utf-8');
   writeFileSync(PORT_PATH, String(opts.port), 'utf-8');
 
+  // Phase 2 Task 2.1 — start orchestrator heartbeat. 5s tick per the
+  // Vision master index decision (calmer than 1s, less Feed Tab chatter).
+  // Overridable via FORGEFRAME_ORCHESTRATOR_INTERVAL_MS.
+  const intervalMs = Number(process.env.FORGEFRAME_ORCHESTRATOR_INTERVAL_MS) || 5000;
+  const stopOrchestrator = startOrchestrator({
+    intervalMs,
+    emit: (kind, payload) => events.emit(kind as any, payload),
+  });
+  process.stderr.write(`[orchestrator] heartbeat every ${intervalMs}ms\n`);
+
   process.stderr.write(`ForgeFrame daemon running (pid ${process.pid}, port ${opts.port})\n`);
 
   function shutdown() {
+    stopOrchestrator();
     try { unlinkSync(PID_PATH); } catch {}
     try { unlinkSync(PORT_PATH); } catch {}
     store.close();
