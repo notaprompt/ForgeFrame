@@ -1103,6 +1103,12 @@
     }
   })();
 
+  // Cookie-sticky auth: once the server has issued an ff_session cookie via
+  // a successful Connect, the existing probe (line ~3886) calls /api/status
+  // with no Authorization header but with cookies auto-sent by the browser.
+  // Server returns 200, probe takes the "no auth needed" branch, Cockpit
+  // boots without a prompt. Nothing to do here — just documenting.
+
   // ===== SAFE DOM HELPERS =====
   // Clear all children without innerHTML
   function clearEl(node) {

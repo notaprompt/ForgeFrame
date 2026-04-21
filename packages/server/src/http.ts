@@ -8,6 +8,7 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { streamSSE } from 'hono/streaming';
+import { getCookie, setCookie } from 'hono/cookie';
 import { serve } from '@hono/node-server';
 import { GuardianComputer, ConsolidationEngine, ContradictionEngine, HebbianEngine, NremPhase, computeSleepPressure, selectSeeds, applySeedGrade, findHindsightCandidates, applyHindsightResponse, findTensionCandidates, RemPhase, computeClusters } from '@forgeframe/memory';
 import type { GuardianSignals, MemoryEdge, MemoryStore, Generator, SeedGrade, HindsightResponse } from '@forgeframe/memory';
@@ -40,15 +41,46 @@ export function startHttpServer({ store, events, port, hostname, generator }: Ht
   }));
 
   const token = loadToken();
-  // Auth: Authorization: Bearer <token> for most endpoints. /api/events also accepts
-  // ?token=<token> because the browser's EventSource API can't send custom headers.
+  const COOKIE_NAME = 'ff_session';
+  const COOKIE_MAX_AGE = 60 * 60 * 24 * 30; // 30 days
+  // Auth: Bearer header, OR ff_session cookie (sticky after first successful login),
+  // OR ?token= on /api/events (EventSource can't send headers). On any successful
+  // header-auth we refresh the cookie so a one-time Connect persists forever.
   app.use('/api/*', async (c, next) => {
     if (!token) return next();
     const bearer = c.req.header('authorization')?.replace(/^Bearer\s+/i, '').trim();
-    if (bearer === token) return next();
+    const cookie = getCookie(c, COOKIE_NAME);
     const url = new URL(c.req.url);
-    if (url.pathname === '/api/events' && url.searchParams.get('token') === token) return next();
-    return c.text('Unauthorized', 401);
+    const queryTok = url.pathname === '/api/events' ? url.searchParams.get('token') : null;
+
+    const authedByBearer = bearer === token;
+    const authedByCookie = cookie === token;
+    const authedByQuery = queryTok === token;
+
+    if (!authedByBearer && !authedByCookie && !authedByQuery) {
+      return c.text('Unauthorized', 401);
+    }
+
+    // Refresh/issue cookie whenever the client proves identity via the
+    // explicit channels (Bearer or query). The cookie path makes subsequent
+    // page loads auth-free.
+    if (authedByBearer || authedByQuery) {
+      setCookie(c, COOKIE_NAME, token, {
+        httpOnly: true,
+        sameSite: 'Lax',
+        path: '/',
+        maxAge: COOKIE_MAX_AGE,
+      });
+    }
+
+    return next();
+  });
+
+  // Explicit sign-out: clears the session cookie. Bearer/query fallbacks still
+  // work for clients that want to re-authenticate.
+  app.post('/api/auth/signout', (c) => {
+    setCookie(c, COOKIE_NAME, '', { httpOnly: true, sameSite: 'Lax', path: '/', maxAge: 0 });
+    return c.json({ ok: true });
   });
 
   // --- Phase 1: ntfy push bridge for guardian:alert (once per server lifecycle) ---
