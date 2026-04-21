@@ -5,7 +5,7 @@
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { MemoryStore, MemoryRetriever, Session, Embedder, Generator } from '@forgeframe/memory';
-import { GuardianComputer, ConsolidationEngine, ContradictionEngine } from '@forgeframe/memory';
+import { GuardianComputer, ConsolidationEngine, ContradictionEngine, buildRoadmap } from '@forgeframe/memory';
 import type { ProvenanceLogger } from './provenance.js';
 import type { ServerEvents } from './events.js';
 import type { ServerConfig } from './config.js';
@@ -87,7 +87,7 @@ export function registerTools(
 
   server.tool(
     'memory_search',
-    'Search memories by query',
+    'Search memories by query. Each result includes validity (1 = current, 0 = superseded by a newer memory) and neighbors (ids of up to 10 memories connected by any edge, strongest first).',
     {
       query: z.string().describe('Search query'),
       limit: z.number().optional().describe('Max results (default 10)'),
@@ -118,6 +118,11 @@ export function registerTools(
           strength: r.memory.strength,
           tags: r.memory.tags,
           createdAt: r.memory.createdAt,
+          // v1 enrichment (2026-04-21 team meeting):
+          // validity: 0 if a newer memory has superseded this one, else 1.
+          // neighbors: ids of memories connected by any edge (in/out), capped at 10.
+          validity: r.validity,
+          neighbors: r.neighbors,
         }));
 
         return toolResult(formatted);
@@ -585,6 +590,66 @@ export function registerTools(
         }
         events.emit('contradiction:resolved', result);
         return toolResult(result);
+      } catch (err) {
+        return toolError(err);
+      }
+    },
+  );
+
+  server.tool(
+    'memory_roadmap',
+    'View the creature\'s memory state as 4 buckets: active (new), pending (settling), entrenched (stable), drifting (decaying).',
+    {
+      activeWindowHours: z.number().optional()
+        .describe('Hours back to count as "active" (default 24)'),
+      entrenchedStrength: z.number().optional()
+        .describe('Strength threshold for entrenched bucket (default 0.85)'),
+      driftingThreshold: z.number().optional()
+        .describe('driftScore threshold for drifting bucket (default 0.6)'),
+      maxPerBucket: z.number().optional()
+        .describe('Max memories per bucket (default 25)'),
+    },
+    async ({ activeWindowHours, entrenchedStrength, driftingThreshold, maxPerBucket }) => {
+      try {
+        const buckets = await buildRoadmap({
+          store,
+          activeWindowHours,
+          entrenchedStrength,
+          driftingThreshold,
+          maxPerBucket,
+        });
+
+        // Shape each memory as a compact view — roadmap is a surface, not a dump.
+        const shape = (m: { id: string; content: string; strength: number; tags: string[]; createdAt: number; lastAccessedAt: number }) => ({
+          id: m.id,
+          content: m.content.slice(0, 200),
+          strength: m.strength,
+          tags: m.tags,
+          createdAt: m.createdAt,
+          lastAccessedAt: m.lastAccessedAt,
+        });
+
+        const payload = {
+          active: buckets.active.map(shape),
+          pending: buckets.pending.map(shape),
+          entrenched: buckets.entrenched.map(shape),
+          drifting: buckets.drifting.map(shape),
+          counts: {
+            active: buckets.active.length,
+            pending: buckets.pending.length,
+            entrenched: buckets.entrenched.length,
+            drifting: buckets.drifting.length,
+          },
+        };
+
+        provenance.log({
+          timestamp: Date.now(),
+          action: 'memory_roadmap',
+          sessionId: sessionRef.current.id,
+          metadata: payload.counts,
+        });
+
+        return toolResult(payload);
       } catch (err) {
         return toolError(err);
       }

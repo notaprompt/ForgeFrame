@@ -7,8 +7,27 @@
 
 import type { MemoryStore } from './store.js';
 import type { Embedder } from './embedder.js';
-import type { Memory, MemoryResult, MemoryQuery } from './types.js';
+import type { Memory, MemoryResult, MemoryQuery, MemoryEdge } from './types.js';
 import { HebbianEngine } from './hebbian.js';
+
+/**
+ * Maximum number of neighbor ids returned per search result. Keeps
+ * response payloads bounded so a highly-connected memory doesn't
+ * blow up a search call. 10 is enough to show context without being
+ * a graph dump.
+ */
+export const MAX_NEIGHBORS = 10;
+
+/**
+ * Edge relation used for supersession. v1 validity checks whether
+ * ANY inbound edge of this type targets the result — if so, the
+ * memory has been corrected / superseded and gets validity = 0.
+ *
+ * The 2026-04-21 team meeting binding decision called this a `corrects`
+ * edge; in the ForgeFrame schema (EDGE_RELATION_TYPES) the same
+ * relation is named `supersedes`. `store.supersede()` creates it.
+ */
+const SUPERSESSION_RELATION = 'supersedes';
 
 export class MemoryRetriever {
   private _store: MemoryStore;
@@ -80,7 +99,7 @@ export class MemoryRetriever {
       if (graphRank) score += 1 / (k + graphRank);
       score += memory.strength * 0.01;
 
-      scored.push({ memory, score });
+      scored.push({ memory, score, validity: 1, neighbors: [] });
     }
 
     scored.sort((a, b) => b.score - a.score);
@@ -99,9 +118,17 @@ export class MemoryRetriever {
       const sessionMems = this._store.getBySession(q.sessionId);
       for (const mem of sessionMems) {
         if (!results.some(r => r.memory.id === mem.id)) {
-          results.push({ memory: mem, score: mem.strength * 0.2 });
+          results.push({ memory: mem, score: mem.strength * 0.2, validity: 1, neighbors: [] });
         }
       }
+    }
+
+    // Enrich each result with validity + neighbors. Per-result try/catch
+    // lives inside _enrichResult so one bad row can't tank the search.
+    for (const r of results) {
+      const enriched = this._enrichResult(r.memory.id);
+      r.validity = enriched.validity;
+      r.neighbors = enriched.neighbors;
     }
 
     // Hebbian co-retrieval update
@@ -163,7 +190,7 @@ export class MemoryRetriever {
       const semanticScore = semScores.get(id) ?? 0;
       const score = (textScore * 0.4) + (semanticScore * 0.4) + (memory.strength * 0.2);
 
-      results.push({ memory, score });
+      results.push({ memory, score, validity: 1, neighbors: [] });
     }
 
     // Session memories (if requested)
@@ -172,7 +199,7 @@ export class MemoryRetriever {
       for (const m of sessionMemories) {
         if (!allIds.has(m.id) && m.strength >= minStrength) {
           if (!q.tags || q.tags.length === 0 || q.tags.some((t) => m.tags.includes(t))) {
-            results.push({ memory: m, score: m.strength * 0.2 });
+            results.push({ memory: m, score: m.strength * 0.2, validity: 1, neighbors: [] });
           }
         }
       }
@@ -186,12 +213,76 @@ export class MemoryRetriever {
       this._store.recordAccess(r.memory.id);
     }
 
+    // Enrich with validity + neighbors (v1 signals per 2026-04-21 team meeting).
+    for (const r of final) {
+      const enriched = this._enrichResult(r.memory.id);
+      r.validity = enriched.validity;
+      r.neighbors = enriched.neighbors;
+    }
+
     // Hebbian co-retrieval update
     if (this._hebbian && final.length >= 2) {
       this._hebbian.hebbianUpdate(final.map((r) => r.memory));
     }
 
     return final;
+  }
+
+  /**
+   * Compute validity + neighbors for a single memory id.
+   *
+   * Graceful failure: if edge queries throw (corrupt index, db lock, etc.),
+   * we log a structured warning and return a safe default
+   * (`{ validity: 1, neighbors: [] }`) rather than failing the whole search.
+   *
+   * Validity (v1, binary): 0 if any inbound `supersedes` edge points at
+   * this id, else 1. See MemoryResult.validity doc for full semantics
+   * and what's deferred to v2.
+   *
+   * Neighbors: all unique memory ids connected by ANY edge (in or out),
+   * sorted by edge weight descending, capped at MAX_NEIGHBORS. When a
+   * neighbor appears multiple times (multiple edges between two nodes),
+   * we keep the highest-weight edge as its rank.
+   */
+  private _enrichResult(memoryId: string): { validity: 0 | 1; neighbors: string[] } {
+    let edges: MemoryEdge[];
+    try {
+      edges = this._store.getEdges(memoryId);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.warn(`[search] edge query failed for memory ${memoryId}: ${message}`);
+      return { validity: 1, neighbors: [] };
+    }
+
+    // Validity: inbound supersession edges only.
+    // An edge has targetId === memoryId AND relationType === 'supersedes' when
+    // a newer memory has superseded this one (store.supersede creates:
+    // source=new, target=old, type='supersedes').
+    let validity: 0 | 1 = 1;
+    for (const edge of edges) {
+      if (edge.targetId === memoryId && edge.relationType === SUPERSESSION_RELATION) {
+        validity = 0;
+        break;
+      }
+    }
+
+    // Neighbors: dedupe by neighbor id, keep highest weight for ranking.
+    const bestWeightByNeighbor = new Map<string, number>();
+    for (const edge of edges) {
+      const neighborId = edge.sourceId === memoryId ? edge.targetId : edge.sourceId;
+      if (neighborId === memoryId) continue; // self-loop — ignore
+      const prev = bestWeightByNeighbor.get(neighborId);
+      if (prev === undefined || edge.weight > prev) {
+        bestWeightByNeighbor.set(neighborId, edge.weight);
+      }
+    }
+
+    const neighbors = [...bestWeightByNeighbor.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, MAX_NEIGHBORS)
+      .map(([id]) => id);
+
+    return { validity, neighbors };
   }
 
   private _mergeUnique(a: Memory[], b: Memory[]): Memory[] {

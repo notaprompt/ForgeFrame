@@ -95,6 +95,33 @@ export interface MemoryQuery {
 export interface MemoryResult {
   memory: Memory;
   score: number;
+  /**
+   * Binary validity signal for v1.
+   *
+   * - 1 when the memory has NOT been superseded by another memory.
+   * - 0 when at least one inbound supersession edge points at this memory
+   *   (a newer memory has explicitly superseded / corrected this one).
+   *
+   * v1 semantic (per 2026-04-21 team meeting): look ONLY at inbound
+   * `supersedes` edges. The binding decision calls this a `corrects` edge;
+   * in the ForgeFrame schema the same relation is named `supersedes`
+   * (see EDGE_RELATION_TYPES). Either `supersedes` OR `contradicts` with
+   * a resolution would express this, but we stick to `supersedes` — that's
+   * how `store.supersede()` records it.
+   *
+   * DEFERRED to v2: composite scoring (contradiction weight, validUntil
+   * timestamps, half-life decay). Do not overload this field.
+   */
+  validity: 0 | 1;
+  /**
+   * Ids of memories connected to this result via any edge (inbound or
+   * outbound), deduped. Capped at `MAX_NEIGHBORS` (10) to keep search
+   * payloads bounded. Ordered by edge weight descending (strongest first).
+   *
+   * Clients that need full neighbor rows should fetch them separately
+   * via `memory_search` or `memory_graph`.
+   */
+  neighbors: string[];
 }
 
 export interface ReconsolidationOptions {
