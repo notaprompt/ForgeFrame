@@ -5,9 +5,14 @@
  * to detect which belief areas are strengthening and which are weakening.
  *
  * "Your beliefs have shifted toward X over the last month."
+ *
+ * Also exposes `driftScore(memory)` — a scalar [0, 1] score for a single
+ * memory. Used by the roadmap view (drifting bucket), and reusable by dream
+ * selection, hindsight weighting, etc.
  */
 
 import type { MemoryStore } from './store.js';
+import type { Memory } from './types.js';
 
 export interface DriftEntry {
   tag: string;
@@ -22,6 +27,82 @@ const EXCLUDED_TAGS = ['principle', 'voice', 'dream-journal'];
 const MS_PER_DAY = 86_400_000;
 const DEFAULT_WINDOW_DAYS = 30;
 const DEFAULT_THRESHOLD = 0.2;
+
+/** Age beyond this (in days) contributes maximally to age signal. */
+const AGE_HALF_LIFE_DAYS = 60;
+/** Access count at or above this dampens the "unused" signal to zero. */
+const ACCESS_SATURATION = 10;
+/** Strength at or below this contributes maximally to the weakness signal. */
+const WEAKNESS_FLOOR = 0.1;
+
+/**
+ * Options for driftScore. All fields optional — sensible defaults applied.
+ * - `meanStrength`: avg strength across a corpus. When provided, weakness is
+ *   computed relative to the corpus mean (Z-style); otherwise an absolute
+ *   strength comparison is used.
+ * - `now`: override current time for deterministic testing.
+ */
+export interface DriftScoreContext {
+  meanStrength?: number;
+  now?: number;
+}
+
+/**
+ * Compute a scalar drift score for a single memory in [0, 1].
+ * Higher = more drift; more likely stale, orphaned, or superseded.
+ *
+ * Weighting (v1 — simple weighted sum, re-tunable later):
+ *   - 0.30 × age ratio (days since createdAt / AGE_HALF_LIFE_DAYS, clamped)
+ *   - 0.25 × unused signal (1 - min(accessCount, ACCESS_SATURATION) / SAT)
+ *   - 0.25 × weakness signal (relative to meanStrength if provided, else
+ *           (1 - strength) clamped to [0, 1])
+ *   - 0.20 × superseded flag (1 if `supersededBy` is set, else 0)
+ *
+ * Constitutional memories (principle, voice) are hard-pinned to 0 — they are
+ * exempt from decay by design, so the roadmap must never surface them as
+ * "drifting."
+ *
+ * The exact weights are tuneable; this v1 is intentionally simple. Returns 0
+ * for memories that are fresh, accessed, strong, and not-superseded.
+ */
+export function driftScore(memory: Memory, context: DriftScoreContext = {}): number {
+  // Constitutional memories never drift — they are exempt from decay.
+  if (memory.tags.some((t) => t === 'principle' || t === 'voice')) return 0;
+
+  const now = context.now ?? Date.now();
+
+  // Age: older memories drift more, capped at 1.0.
+  const ageDays = Math.max(0, (now - memory.createdAt) / MS_PER_DAY);
+  const ageSignal = Math.min(1, ageDays / AGE_HALF_LIFE_DAYS);
+
+  // Unused: low access count = more drift. Accesses saturate the signal.
+  const accessRatio = Math.min(1, (memory.accessCount ?? 0) / ACCESS_SATURATION);
+  const unusedSignal = 1 - accessRatio;
+
+  // Weakness: relative to mean if corpus context provided; else absolute.
+  const strength = Number.isFinite(memory.strength) ? memory.strength : 0;
+  let weaknessSignal: number;
+  if (typeof context.meanStrength === 'number' && context.meanStrength > 0) {
+    // Below-mean = drift signal; above-mean = no signal. Clamped to [0, 1].
+    const deficit = context.meanStrength - strength;
+    weaknessSignal = Math.max(0, Math.min(1, deficit / context.meanStrength));
+  } else {
+    const floor = WEAKNESS_FLOOR;
+    weaknessSignal = Math.max(0, Math.min(1, (1 - strength) - floor) / (1 - floor));
+  }
+
+  // Superseded: binary flag.
+  const supersededSignal = memory.supersededBy ? 1 : 0;
+
+  const score =
+    0.30 * ageSignal +
+    0.25 * unusedSignal +
+    0.25 * weaknessSignal +
+    0.20 * supersededSignal;
+
+  // Clamp for safety; weights sum to 1.0 already.
+  return Math.max(0, Math.min(1, score));
+}
 
 interface WindowEdge {
   weight: number;

@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { MemoryStore } from './store.js';
-import { detectDrift } from './drift.js';
+import { detectDrift, driftScore } from './drift.js';
+import type { Memory } from './types.js';
 
 const DAY = 86_400_000;
 
@@ -210,5 +211,103 @@ describe('detectDrift', () => {
     expect(routing!.priorAvgWeight).toBeCloseTo(0.8);
     expect(routing!.direction).toBe('strengthening');
     expect(routing!.memoryCount).toBeGreaterThan(0);
+  });
+});
+
+describe('driftScore', () => {
+  const now = 1_800_000_000_000; // fixed reference time for determinism
+
+  function mkMemory(overrides: Partial<Memory> = {}): Memory {
+    return {
+      id: 'm1',
+      content: 'content',
+      embedding: null,
+      strength: 1.0,
+      accessCount: 10,
+      retrievalCount: 0,
+      createdAt: now,
+      lastAccessedAt: now,
+      lastDecayAt: now,
+      sessionId: null,
+      tags: [],
+      associations: [],
+      metadata: {},
+      memoryType: 'semantic',
+      readiness: 0,
+      valence: 'neutral',
+      lastHindsightReview: null,
+      ...overrides,
+    };
+  }
+
+  it('returns 0 for a fresh, strong, accessed, not-superseded memory', () => {
+    const m = mkMemory();
+    expect(driftScore(m, { now })).toBe(0);
+  });
+
+  it('returns 0 for constitutional memories regardless of other signals', () => {
+    const m = mkMemory({
+      tags: ['principle'],
+      strength: 0.0,
+      accessCount: 0,
+      createdAt: now - 365 * 86_400_000, // very old
+      supersededBy: 'other-id',
+    });
+    expect(driftScore(m, { now })).toBe(0);
+
+    const voiceMem = mkMemory({ tags: ['voice'], strength: 0.0 });
+    expect(driftScore(voiceMem, { now })).toBe(0);
+  });
+
+  it('increases with age', () => {
+    const young = mkMemory({ createdAt: now - 5 * 86_400_000 });
+    const old = mkMemory({ createdAt: now - 120 * 86_400_000 });
+    expect(driftScore(old, { now })).toBeGreaterThan(driftScore(young, { now }));
+  });
+
+  it('increases when access count is low', () => {
+    const used = mkMemory({ accessCount: 10, createdAt: now - 30 * 86_400_000 });
+    const unused = mkMemory({ accessCount: 0, createdAt: now - 30 * 86_400_000 });
+    expect(driftScore(unused, { now })).toBeGreaterThan(driftScore(used, { now }));
+  });
+
+  it('increases when memory is below mean strength (corpus context)', () => {
+    const weak = mkMemory({ strength: 0.2, createdAt: now - 30 * 86_400_000, accessCount: 5 });
+    const strong = mkMemory({ strength: 0.9, createdAt: now - 30 * 86_400_000, accessCount: 5 });
+    const meanStrength = 0.7;
+    expect(driftScore(weak, { now, meanStrength })).toBeGreaterThan(
+      driftScore(strong, { now, meanStrength }),
+    );
+  });
+
+  it('jumps when supersededBy is set', () => {
+    const base = mkMemory({ createdAt: now - 5 * 86_400_000, accessCount: 3 });
+    const superseded = mkMemory({
+      createdAt: now - 5 * 86_400_000,
+      accessCount: 3,
+      supersededBy: 'newer-id',
+    });
+    expect(driftScore(superseded, { now })).toBeGreaterThanOrEqual(
+      driftScore(base, { now }) + 0.19, // 0.20 weight, allow tiny fp tolerance
+    );
+  });
+
+  it('is clamped to [0, 1]', () => {
+    const max = mkMemory({
+      strength: 0,
+      accessCount: 0,
+      createdAt: now - 365 * 86_400_000,
+      supersededBy: 'x',
+    });
+    const s = driftScore(max, { now });
+    expect(s).toBeGreaterThan(0);
+    expect(s).toBeLessThanOrEqual(1);
+  });
+
+  it('handles a NaN strength gracefully by treating it as 0', () => {
+    const m = mkMemory({ strength: NaN, createdAt: now - 30 * 86_400_000, accessCount: 0 });
+    const s = driftScore(m, { now });
+    expect(Number.isFinite(s)).toBe(true);
+    expect(s).toBeGreaterThan(0);
   });
 });
