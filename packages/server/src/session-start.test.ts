@@ -282,6 +282,38 @@ describe('session_start tool (hydration integration)', () => {
     expect(parsed.hydration.active.length).toBeGreaterThanOrEqual(1);
   });
 
+  it('hydration memories include sensitivity tier (sovereignty observability)', async () => {
+    // One public (default), one sensitive (explicit), one local-only (explicit).
+    store.create({ content: 'public principle', tags: ['principle'], sensitivity: 'public' });
+    store.create({ content: 'sensitive principle', tags: ['principle'], sensitivity: 'sensitive' });
+    store.create({ content: 'local-only principle', tags: ['principle'], sensitivity: 'local-only' });
+
+    const mock = setupTools(store, session, provPath);
+    const handler = mock.handlers.get('session_start')!;
+    const result = await handler({});
+    const parsed = JSON.parse(result.content[0].text);
+
+    const tiers = parsed.hydration.entrenched.map((m: { sensitivity: string }) => m.sensitivity);
+    expect(tiers).toContain('public');
+    expect(tiers).toContain('sensitive');
+    expect(tiers).toContain('local-only');
+  });
+
+  it('hydration.me includes sensitivity from the underlying memory row', async () => {
+    // saveMeState defaults sensitivity to 'sensitive'.
+    await saveMeState({ store, payload: samplePayload({ notes: 'identity snapshot' }) });
+
+    const mock = setupTools(store, session, provPath);
+    const handler = mock.handlers.get('session_start')!;
+    const result = await handler({});
+    const parsed = JSON.parse(result.content[0].text);
+
+    expect(parsed.hydration.me).not.toBeNull();
+    expect(parsed.hydration.me.sensitivity).toBe('sensitive');
+    // Payload fields still propagate verbatim.
+    expect(parsed.hydration.me.notes).toBe('identity snapshot');
+  });
+
   it('creates the new session even if hydration helpers throw', async () => {
     // Wrap store so roadmap & me:state paths both fail but startSession works.
     const wrapped: MemoryStore = new Proxy(store, {
@@ -307,5 +339,39 @@ describe('session_start tool (hydration integration)', () => {
     expect(parsed.hydration.entrenched).toEqual([]);
     expect(parsed.hydration.active).toEqual([]);
     expect(parsed.hydration.drifting).toEqual([]);
+  });
+});
+
+describe('memory_search tool (sovereignty observability)', () => {
+  let store: MemoryStore;
+  let session: Session;
+  let provPath: string;
+
+  beforeEach(() => {
+    store = new MemoryStore({ dbPath: ':memory:' });
+    session = store.startSession();
+    provPath = join(tmpdir(), `srv-prov-${randomUUID()}.jsonl`);
+  });
+
+  afterEach(() => {
+    try { store.close(); } catch { /* ignore */ }
+    try { unlinkSync(provPath); } catch { /* ignore */ }
+  });
+
+  it('still returns results when a non-public memory is in the set (sovereigntyCheck never blocks)', async () => {
+    // Mix of public + sensitive + local-only. sovereigntyCheck is log-only in Wave 1,
+    // so memory_search must still return every match.
+    store.create({ content: 'sovereignty is architectural', tags: ['principle'], sensitivity: 'public' });
+    store.create({ content: 'sovereignty identity snapshot', tags: ['principle'], sensitivity: 'sensitive' });
+    store.create({ content: 'sovereignty local secret', tags: ['principle'], sensitivity: 'local-only' });
+
+    const mock = setupTools(store, session, provPath);
+    const handler = mock.handlers.get('memory_search')!;
+    const result = await handler({ query: 'sovereignty', limit: 10 });
+    const parsed = JSON.parse(result.content[0].text);
+
+    expect(Array.isArray(parsed)).toBe(true);
+    // All three memories are returned — sovereigntyCheck is observability-only.
+    expect(parsed.length).toBe(3);
   });
 });

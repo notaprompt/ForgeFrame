@@ -123,6 +123,7 @@ export async function saveMeState(opts: SaveMeStateOptions): Promise<string> {
   // Sovereignty default: identity snapshots are 'sensitive' unless the caller
   // explicitly opts into a different level. Store default is 'public' for
   // generic memories; me:state overrides that because it encodes self-model.
+  // Default 'sensitive' — identity never crosses freely. Caller can override with 'public' or 'local-only'.
   const memory = store.create({
     content: encodeMeStateContent(payload),
     sessionId,

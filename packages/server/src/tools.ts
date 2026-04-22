@@ -4,7 +4,7 @@
 
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import type { Memory, MemoryStore, MemoryRetriever, Session, Embedder, Generator, MeStatePayload } from '@forgeframe/memory';
+import type { Memory, MemoryStore, MemoryRetriever, Session, Embedder, Generator, MeStatePayload, Sensitivity } from '@forgeframe/memory';
 import {
   GuardianComputer,
   ConsolidationEngine,
@@ -15,6 +15,7 @@ import {
 import type { ProvenanceLogger } from './provenance.js';
 import type { ServerEvents } from './events.js';
 import type { ServerConfig } from './config.js';
+import { sovereigntyCheck } from './sovereignty.js';
 
 const startTime = Date.now();
 
@@ -40,10 +41,18 @@ export interface HydrationMemory {
   tags: string[];
   createdAt: number;
   lastAccessedAt: number;
+  // Sovereignty tier. Propagated so hydration consumers can see at a glance
+  // which memories are safe to surface to frontier models.
+  sensitivity: Sensitivity;
+}
+
+/** me:state payload + the sensitivity of the underlying memory row. */
+export interface HydrationMeState extends MeStatePayload {
+  sensitivity: Sensitivity;
 }
 
 export interface HydrationPayload {
-  me: MeStatePayload | null;
+  me: HydrationMeState | null;
   entrenched: HydrationMemory[];
   active: HydrationMemory[];
   drifting: HydrationMemory[];
@@ -57,6 +66,7 @@ function shapeHydrationMemory(m: Memory): HydrationMemory {
     tags: m.tags,
     createdAt: m.createdAt,
     lastAccessedAt: m.lastAccessedAt,
+    sensitivity: m.sensitivity,
   };
 }
 
@@ -94,7 +104,8 @@ export async function buildSessionHydration(opts: {
   const payload = emptyHydration();
 
   if (meResult.status === 'fulfilled') {
-    payload.me = meResult.value?.payload ?? null;
+    const row = meResult.value;
+    payload.me = row ? { ...row.payload, sensitivity: row.sensitivity } : null;
   } else {
     const reason = meResult.reason instanceof Error
       ? meResult.reason.message
@@ -217,6 +228,17 @@ export function registerTools(
           validity: r.validity,
           neighbors: r.neighbors,
         }));
+
+        // TODO(phase-4): relocate to provider boundary once call-site is chosen.
+        // Currently observability-only — assumes frontier destination to maximize
+        // visibility. Phase 4 will inject real destination from the router.
+        sovereigntyCheck(
+          store,
+          {
+            memoryIds: results.map((r) => r.memory.id),
+            destination: 'frontier',
+          },
+        );
 
         return toolResult(formatted);
       } catch (err) {
