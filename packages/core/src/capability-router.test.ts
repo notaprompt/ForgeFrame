@@ -157,9 +157,14 @@ describe('CapabilityRouter', () => {
       const msg = 'Analyze the architecture of this system and evaluate the trade-offs between the microservice approach and the monolith';
       const matches = router.route(msg);
       expect(matches.length).toBeGreaterThan(0);
-      // Deep organ should appear for reason action
-      const deepMatch = matches.find((m) => m.organ.id === 'test.deep-reasoner');
-      expect(deepMatch).toBeDefined();
+      /*
+       * Honest-red assertion: the prior assertion (`expect(deepMatch).toBeDefined()`)
+       * tolerated cloud-reasoner outscoring deep-reasoner, hiding real routing drift.
+       * This assertion now names the expected winner. Expected to FAIL until Phase 4
+       * routing work (scheduled Sat 2026-04-25) fixes the underlying capability-router
+       * scoring. Do not "fix" this test back to the loose form -- the red is the signal.
+       */
+      expect(matches[0].organ.id).toBe('test.deep-reasoner');
     });
 
     it('code-related message resolves to code organ', () => {
