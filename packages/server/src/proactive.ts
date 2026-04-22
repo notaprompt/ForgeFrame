@@ -131,6 +131,7 @@ export function startProactive(opts: StartProactiveOptions): () => void {
         tags: ['dream', 'nrem'],
       }),
       log,
+      'dream:nrem',
     );
   };
 
@@ -150,6 +151,7 @@ export function startProactive(opts: StartProactiveOptions): () => void {
         tags: ['dream', 'rem'],
       }),
       log,
+      'dream:rem',
     );
   };
 
@@ -179,6 +181,7 @@ export function startProactive(opts: StartProactiveOptions): () => void {
         tags: ['guardian', severity],
       }),
       log,
+      `guardian:${prev}→${next}`,
     );
   };
 
@@ -467,8 +470,11 @@ function errMsg(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
 
-function fireAndLog(p: Promise<void>, log: (s: string) => void): void {
-  p.catch((err) => log(`[proactive] push failed: ${errMsg(err)}`));
+function fireAndLog(p: Promise<void>, log: (s: string) => void, label?: string): void {
+  p.then(
+    () => log(`[proactive] push sent${label ? ` (${label})` : ''}`),
+    (err) => log(`[proactive] push failed: ${errMsg(err)}`),
+  );
 }
 
 function parseEnabledEnv(v: string | undefined): boolean | undefined {
