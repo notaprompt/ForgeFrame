@@ -339,6 +339,73 @@ describe('proactive creature', () => {
     expect(log).toHaveBeenCalledWith(expect.stringMatching(/morning digest failed/));
     expect(log).toHaveBeenCalledWith(expect.stringMatching(/evening reflection failed/));
   });
+
+  // -- Test 11: both transports fire on a dream event -----------------
+
+  it('fires both ntfy and telegram on a meaningful dream event', async () => {
+    const sendTelegram = vi.fn().mockResolvedValue(undefined);
+    const stop = startProactive({
+      store,
+      events,
+      config: { sendPush, sendTelegram, log, dreamRateLimitMs: 0 },
+    });
+
+    events.emit('dream:nrem:complete', makeNrem({ edgesPruned: 30 }));
+    // broadcast fires both in parallel; flush microtasks twice.
+    await new Promise((r) => setImmediate(r));
+    await new Promise((r) => setImmediate(r));
+
+    expect(sendPush).toHaveBeenCalledTimes(1);
+    expect(sendTelegram).toHaveBeenCalledTimes(1);
+    const tgCall = sendTelegram.mock.calls[0][0];
+    expect(tgCall).toMatchObject({ title: 'Vision dream · nrem' });
+    expect(typeof tgCall.body).toBe('string');
+    // Telegram payload must NOT carry ntfy-only fields (priority/tags).
+    expect(tgCall).not.toHaveProperty('priority');
+    expect(tgCall).not.toHaveProperty('tags');
+
+    stop();
+  });
+
+  // -- Test 12: one transport failing does not block the other --------
+
+  it('ntfy failure does not prevent telegram from firing', async () => {
+    const sendPushFail = vi.fn().mockRejectedValue(new Error('ntfy down'));
+    const sendTelegram = vi.fn().mockResolvedValue(undefined);
+    const stop = startProactive({
+      store,
+      events,
+      config: { sendPush: sendPushFail, sendTelegram, log, dreamRateLimitMs: 0 },
+    });
+
+    events.emit('dream:nrem:complete', makeNrem({ edgesPruned: 30 }));
+    await new Promise((r) => setImmediate(r));
+    await new Promise((r) => setImmediate(r));
+
+    expect(sendPushFail).toHaveBeenCalledTimes(1);
+    expect(sendTelegram).toHaveBeenCalledTimes(1);
+    stop();
+  });
+
+  // -- Test 13: telegram failure does not prevent ntfy from firing ----
+
+  it('telegram failure does not prevent ntfy from firing', async () => {
+    const sendPushOk = vi.fn().mockResolvedValue(undefined);
+    const sendTelegramFail = vi.fn().mockRejectedValue(new Error('telegram down'));
+    await runMorningDigest({
+      store,
+      log,
+      sendPush: sendPushOk,
+      sendTelegram: sendTelegramFail,
+    });
+    expect(sendPushOk).toHaveBeenCalledTimes(1);
+    expect(sendTelegramFail).toHaveBeenCalledTimes(1);
+    expect(log).toHaveBeenCalledWith(
+      expect.stringMatching(/morning digest failed \(telegram\)/),
+    );
+    // The "sent" log line still fires because push succeeded.
+    expect(log).toHaveBeenCalledWith('[proactive] morning digest sent');
+  });
 });
 
 // -- Meaningful-predicate unit tests ------------------------------------

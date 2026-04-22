@@ -114,6 +114,8 @@ events.on('memory:created', (memory) => {
 | `FORGEFRAME_EMBEDDING_MODEL` | `nomic-embed-text` | Embedding model name |
 | `FORGEFRAME_HTTP_PORT` | disabled | HTTP daemon port |
 | `FORGEFRAME_TOKEN` | disabled | Bearer auth for HTTP API |
+| `FORGEFRAME_TELEGRAM_TOKEN` | disabled | Telegram bot token for outbound push (pairs with chat id) |
+| `FORGEFRAME_TELEGRAM_CHAT_ID` | disabled | Telegram chat id to receive proactive pushes |
 
 ## Architecture
 

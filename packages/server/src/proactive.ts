@@ -24,6 +24,11 @@ import type { MemoryStore, GuardianTemperature, NremResult, RemResult } from '@f
 import { buildRoadmap, loadLatestMeState } from '@forgeframe/memory';
 import type { ServerEvents } from './events.js';
 import { sendPush as realSendPush, type PushOptions } from './push.js';
+import {
+  sendTelegram as realSendTelegram,
+  logTelegramStartupStatus,
+  type TelegramOptions,
+} from './telegram.js';
 
 // -- Config --------------------------------------------------------------
 
@@ -46,6 +51,12 @@ export interface ProactiveConfig {
    * Defaults to the real sendPush from push.ts.
    */
   sendPush?: (opts: PushOptions) => Promise<void>;
+  /**
+   * Telegram send function. Injected so tests can swap a mock.
+   * Defaults to the real sendTelegram from telegram.ts (graceful no-op
+   * when FORGEFRAME_TELEGRAM_TOKEN / FORGEFRAME_TELEGRAM_CHAT_ID are unset).
+   */
+  sendTelegram?: (opts: TelegramOptions) => Promise<void>;
   /**
    * Override Date.now(). Primarily for deterministic cron scheduling tests.
    * Never used in production.
@@ -80,12 +91,17 @@ export function startProactive(opts: StartProactiveOptions): () => void {
   const enabled = config.enabled ?? enabledFromEnv ?? true;
   const log = config.log ?? defaultLog;
   const sendPush = config.sendPush ?? realSendPush;
+  const sendTelegram = config.sendTelegram ?? realSendTelegram;
   const now = config.now ?? (() => Date.now());
 
   if (!enabled) {
     log('[proactive] disabled (config.enabled=false) — no timers, no subscriptions');
     return () => {};
   }
+
+  // One-shot startup log describing telegram config state. Must not fire on
+  // every sendTelegram call — only once per daemon start.
+  logTelegramStartupStatus(log);
 
   const morningHour = config.morningHour ?? DEFAULT_MORNING_HOUR;
   const eveningHour = config.eveningHour ?? DEFAULT_EVENING_HOUR;
@@ -98,7 +114,7 @@ export function startProactive(opts: StartProactiveOptions): () => void {
     label: 'morning',
     now,
     log,
-    run: () => runMorningDigest({ store, log, sendPush }),
+    run: () => runMorningDigest({ store, log, sendPush, sendTelegram }),
   });
   log(`[proactive] morning digest scheduled for ${morningTimer.nextIso}`);
 
@@ -107,9 +123,16 @@ export function startProactive(opts: StartProactiveOptions): () => void {
     label: 'evening',
     now,
     log,
-    run: () => runEveningReflection({ store, events, log, sendPush }),
+    run: () => runEveningReflection({ store, events, log, sendPush, sendTelegram }),
   });
   log(`[proactive] evening reflection scheduled for ${eveningTimer.nextIso}`);
+
+  // Broadcast: fire ntfy + telegram in parallel, best-effort. Failure of
+  // one transport must not prevent the other. Never throws.
+  const broadcast = (opts: PushOptions, label?: string): void => {
+    fireAndLog(sendPush(opts), log, label);
+    fireAndLog(sendTelegram({ title: opts.title, body: opts.body }), log, label);
+  };
 
   // Event-driven handlers ------------------------------------------------
 
@@ -123,14 +146,13 @@ export function startProactive(opts: StartProactiveOptions): () => void {
     }
     dreamState.lastPushAt = now();
     const body = formatNremBody(result);
-    fireAndLog(
-      sendPush({
+    broadcast(
+      {
         title: 'Vision dream · nrem',
         body,
         priority: 'low',
         tags: ['dream', 'nrem'],
-      }),
-      log,
+      },
       'dream:nrem',
     );
   };
@@ -143,14 +165,13 @@ export function startProactive(opts: StartProactiveOptions): () => void {
     }
     dreamState.lastPushAt = now();
     const body = formatRemBody(result);
-    fireAndLog(
-      sendPush({
+    broadcast(
+      {
         title: 'Vision dream · rem',
         body,
         priority: 'low',
         tags: ['dream', 'rem'],
-      }),
-      log,
+      },
       'dream:rem',
     );
   };
@@ -173,14 +194,13 @@ export function startProactive(opts: StartProactiveOptions): () => void {
     const priority: PushOptions['priority'] = next === 'trapped' ? 'high' : 'default';
     const severity = next === 'trapped' ? 'error' : 'warn';
     const reason = summarizeGuardianSignals(temp);
-    fireAndLog(
-      sendPush({
+    broadcast(
+      {
         title: `Vision guardian · ${next}`,
         body: `temp=${temp.value.toFixed(2)}, reason: ${reason}`,
         priority,
         tags: ['guardian', severity],
-      }),
-      log,
+      },
       `guardian:${prev}→${next}`,
     );
   };
@@ -207,14 +227,20 @@ interface RunMorningOptions {
   store: MemoryStore;
   log: (line: string) => void;
   sendPush: (opts: PushOptions) => Promise<void>;
+  /**
+   * Optional telegram sender. When omitted, only ntfy fires — keeps the
+   * test surface stable for call sites that don't wire telegram yet.
+   */
+  sendTelegram?: (opts: TelegramOptions) => Promise<void>;
 }
 
 /**
  * Compose the morning digest body and push it. Exported for tests.
- * Never throws — failures are logged and swallowed.
+ * Never throws — failures are logged and swallowed. Both transports are
+ * best-effort: a failure of one must not prevent the other.
  */
 export async function runMorningDigest(opts: RunMorningOptions): Promise<void> {
-  const { store, log, sendPush } = opts;
+  const { store, log, sendPush, sendTelegram } = opts;
   try {
     const me = await loadLatestMeState({ store, log });
     const roadmap = await buildRoadmap({ store, log });
@@ -239,12 +265,22 @@ export async function runMorningDigest(opts: RunMorningOptions): Promise<void> {
       300,
     );
 
-    await sendPush({
-      title: `Vision morning · ${formatShortDate(new Date())}`,
-      body,
-      priority: 'default',
-      tags: ['morning', 'digest'],
-    });
+    const title = `Vision morning · ${formatShortDate(new Date())}`;
+    const [pushResult, tgResult] = await Promise.allSettled([
+      sendPush({
+        title,
+        body,
+        priority: 'default',
+        tags: ['morning', 'digest'],
+      }),
+      sendTelegram ? sendTelegram({ title, body }) : Promise.resolve(),
+    ]);
+    if (pushResult.status === 'rejected') {
+      log(`[proactive] morning digest failed (push): ${errMsg(pushResult.reason)}`);
+    }
+    if (tgResult.status === 'rejected') {
+      log(`[proactive] morning digest failed (telegram): ${errMsg(tgResult.reason)}`);
+    }
     log('[proactive] morning digest sent');
   } catch (err) {
     log(`[proactive] morning digest failed: ${errMsg(err)}`);
@@ -258,14 +294,19 @@ interface RunEveningOptions {
   events: ServerEvents;
   log: (line: string) => void;
   sendPush: (opts: PushOptions) => Promise<void>;
+  /**
+   * Optional telegram sender. When omitted, only ntfy fires.
+   */
+  sendTelegram?: (opts: TelegramOptions) => Promise<void>;
 }
 
 /**
  * Compose the evening reflection body and push it. Exported for tests.
- * Never throws — failures are logged and swallowed.
+ * Never throws — failures are logged and swallowed. Both transports are
+ * best-effort: a failure of one must not prevent the other.
  */
 export async function runEveningReflection(opts: RunEveningOptions): Promise<void> {
-  const { store, log, sendPush } = opts;
+  const { store, log, sendPush, sendTelegram } = opts;
   try {
     const todayStart = startOfToday();
     const pool = store.getRecent(500);
@@ -306,12 +347,22 @@ export async function runEveningReflection(opts: RunEveningOptions): Promise<voi
       300,
     );
 
-    await sendPush({
-      title: 'Vision evening · reflection',
-      body,
-      priority: 'low',
-      tags: ['evening', 'reflection'],
-    });
+    const title = 'Vision evening · reflection';
+    const [pushResult, tgResult] = await Promise.allSettled([
+      sendPush({
+        title,
+        body,
+        priority: 'low',
+        tags: ['evening', 'reflection'],
+      }),
+      sendTelegram ? sendTelegram({ title, body }) : Promise.resolve(),
+    ]);
+    if (pushResult.status === 'rejected') {
+      log(`[proactive] evening reflection failed (push): ${errMsg(pushResult.reason)}`);
+    }
+    if (tgResult.status === 'rejected') {
+      log(`[proactive] evening reflection failed (telegram): ${errMsg(tgResult.reason)}`);
+    }
     log('[proactive] evening reflection sent');
   } catch (err) {
     log(`[proactive] evening reflection failed: ${errMsg(err)}`);
