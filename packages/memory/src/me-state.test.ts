@@ -105,6 +105,34 @@ describe('saveMeState', () => {
     expect(mem.metadata.mutable).toBe(true);
     expect(mem.metadata.meState).toBe(true);
   });
+
+  it("defaults sensitivity to 'sensitive' when not specified", async () => {
+    const id = await saveMeState({ store, payload: samplePayload() });
+    const mem = store.get(id)!;
+    expect(mem.sensitivity).toBe('sensitive');
+    const latest = await loadLatestMeState({ store });
+    expect(latest!.sensitivity).toBe('sensitive');
+  });
+
+  it("honors explicit sensitivity override of 'public'", async () => {
+    const id = await saveMeState({
+      store,
+      payload: samplePayload(),
+      sensitivity: 'public',
+    });
+    const mem = store.get(id)!;
+    expect(mem.sensitivity).toBe('public');
+  });
+
+  it("honors explicit sensitivity override of 'local-only'", async () => {
+    const id = await saveMeState({
+      store,
+      payload: samplePayload(),
+      sensitivity: 'local-only',
+    });
+    const mem = store.get(id)!;
+    expect(mem.sensitivity).toBe('local-only');
+  });
 });
 
 describe('loadMeStates', () => {

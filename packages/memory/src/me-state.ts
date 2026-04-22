@@ -14,7 +14,7 @@
  * - No schema changes — removing this file leaves the store unchanged.
  */
 
-import type { Memory } from './types.js';
+import type { Memory, Sensitivity } from './types.js';
 import type { MemoryStore } from './store.js';
 
 /** The tag that marks a memory as a me:state snapshot. */
@@ -48,6 +48,13 @@ export interface SaveMeStateOptions {
   payload: MeStatePayload;
   /** If provided, tag the memory with `session:<id>` for cheap session-scoped retrieval. */
   sessionId?: string;
+  /**
+   * Sensitivity classification for the persisted snapshot.
+   * Defaults to `'sensitive'` — me:state encodes identity/self-model, which must
+   * not leak to frontier models by accident. Callers may override (e.g. `'public'`
+   * for a sanitized snapshot, `'local-only'` to lock a snapshot to this machine).
+   */
+  sensitivity?: Sensitivity;
   /** Override logger for structured events. Defaults to `console.warn`. */
   log?: (line: string) => void;
 }
@@ -108,15 +115,19 @@ export function parseMeStateContent(content: string): MeStatePayload {
  * Returns the new memory id.
  */
 export async function saveMeState(opts: SaveMeStateOptions): Promise<string> {
-  const { store, payload, sessionId } = opts;
+  const { store, payload, sessionId, sensitivity } = opts;
 
   const tags = [ME_STATE_TAG];
   if (sessionId) tags.push(`session:${sessionId}`);
 
+  // Sovereignty default: identity snapshots are 'sensitive' unless the caller
+  // explicitly opts into a different level. Store default is 'public' for
+  // generic memories; me:state overrides that because it encodes self-model.
   const memory = store.create({
     content: encodeMeStateContent(payload),
     sessionId,
     tags,
+    sensitivity: sensitivity ?? 'sensitive',
     metadata: {
       mutable: true,
       meState: true,
