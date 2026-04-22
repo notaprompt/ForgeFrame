@@ -14,6 +14,7 @@ import { loadConfig } from './config.js';
 import { ServerEvents } from './events.js';
 import { startHttpServer } from './http.js';
 import { startOrchestrator } from './orchestrator.js';
+import { startProactive } from './proactive.js';
 import { TriggerManager } from './triggers.js';
 
 const FORGEFRAME_DIR = resolve(homedir(), '.forgeframe');
@@ -165,10 +166,29 @@ export async function serveDaemon(opts: DaemonOptions): Promise<void> {
   // class of bug that hides for months.
   const triggerManager = armTriggers({ events });
 
+  // Proactive Creature MVP — scheduled + event-driven outbound pings.
+  // Composes existing primitives (buildRoadmap, loadLatestMeState, sendPush).
+  // Two-way door: remove this block (and the shutdown call below) and the
+  // daemon reverts to pre-proactive behavior exactly. Set
+  // FORGEFRAME_PROACTIVE_ENABLED=0 to disable without code edit.
+  let stopProactive: () => void = () => {};
+  try {
+    stopProactive = startProactive({ store, events });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    process.stderr.write(`[proactive] start failed: ${message}\n`);
+  }
+
   process.stderr.write(`ForgeFrame daemon running (pid ${process.pid}, port ${opts.port})\n`);
 
   function shutdown() {
     stopOrchestrator();
+    try {
+      stopProactive();
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      process.stderr.write(`[proactive] stop failed: ${message}\n`);
+    }
     if (triggerManager) {
       try {
         triggerManager.stop();

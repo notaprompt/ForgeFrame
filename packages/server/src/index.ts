@@ -16,6 +16,8 @@ export type { DaemonOptions, DaemonStatus } from './daemon.js';
 // See agent.ts and agent-cli.ts for CLI usage via `forgeframe agent run`.
 export { TriggerManager } from './triggers.js';
 export type { CronTrigger, WatchTrigger, Trigger } from './triggers.js';
+export { startProactive } from './proactive.js';
+export type { ProactiveConfig, StartProactiveOptions } from './proactive.js';
 export { SERVER_ORGAN_MANIFEST, createServerOrganLifecycle } from './organ.js';
 export { registerOrganTools } from './organ-tools.js';
 export { DistilleryIntake } from './distillery.js';
