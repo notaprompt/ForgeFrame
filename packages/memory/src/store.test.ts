@@ -54,6 +54,44 @@ describe('MemoryStore', () => {
       const mem = store.create({ content: 'test', tags: ['principle'], valence: 'charged' });
       expect(store.get(mem.id)!.valence).toBe('grounding');
     });
+
+    it("defaults sensitivity to 'public' when omitted", () => {
+      const mem = store.create({ content: 'no sens' });
+      expect(mem.sensitivity).toBe('public');
+      expect(store.get(mem.id)!.sensitivity).toBe('public');
+    });
+
+    it.each(['public', 'sensitive', 'local-only'] as const)(
+      "persists sensitivity '%s' across round-trip",
+      (level) => {
+        const mem = store.create({ content: 'with sens', sensitivity: level });
+        expect(mem.sensitivity).toBe(level);
+        expect(store.get(mem.id)!.sensitivity).toBe(level);
+      },
+    );
+
+    it('rejects invalid sensitivity value', () => {
+      expect(() =>
+        store.create({ content: 'bad', sensitivity: 'cosmic-top-secret' as any }),
+      ).toThrow(/Invalid sensitivity/);
+    });
+  });
+
+  describe('sensitivity updates', () => {
+    it('update() can change sensitivity from public to sensitive', () => {
+      const mem = store.create({ content: 'starts public' });
+      expect(mem.sensitivity).toBe('public');
+      const updated = store.update(mem.id, { sensitivity: 'sensitive' });
+      expect(updated!.sensitivity).toBe('sensitive');
+      expect(store.get(mem.id)!.sensitivity).toBe('sensitive');
+    });
+
+    it('update() rejects invalid sensitivity value', () => {
+      const mem = store.create({ content: 'starts public' });
+      expect(() =>
+        store.update(mem.id, { sensitivity: 'nope' as any }),
+      ).toThrow(/Invalid sensitivity/);
+    });
   });
 
   describe('get', () => {

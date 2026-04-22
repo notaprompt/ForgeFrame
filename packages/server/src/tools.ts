@@ -141,8 +141,10 @@ export function registerTools(
       metadata: z.record(z.unknown()).optional().describe('Arbitrary metadata'),
       valence: z.enum(['charged', 'neutral', 'grounding']).optional()
         .describe('Emotional valence (auto-classified if omitted)'),
+      sensitivity: z.enum(['public', 'sensitive', 'local-only']).optional()
+        .describe("Sovereignty tier. 'public' (default) = may cross to frontier models; 'sensitive' = must be abstracted before frontier; 'local-only' = never leaves local inference."),
     },
-    async ({ content, tags, metadata, valence }) => {
+    async ({ content, tags, metadata, valence, sensitivity }) => {
       try {
         let embedding: number[] | undefined;
         if (embedder) {
@@ -157,6 +159,7 @@ export function registerTools(
           metadata: metadata ?? {},
           sessionId: sessionRef.current.id,
           valence,
+          sensitivity,
         });
 
         provenance.log({

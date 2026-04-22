@@ -37,6 +37,21 @@ export type Valence = (typeof VALENCE_STATES)[number];
 export const MEMORY_TYPES = ['semantic', 'episodic', 'principle', 'artifact'] as const;
 export type MemoryType = typeof MEMORY_TYPES[number];
 
+/**
+ * Sensitivity levels (sovereignty layer — Wave 2 Phase 4 enforcement).
+ *
+ * - `public` (default): memory can be sent to frontier model providers without restriction.
+ * - `sensitive`: memory must be anonymized/abstracted before crossing the frontier boundary.
+ * - `local-only`: memory never crosses the frontier boundary. Local inference only.
+ *
+ * v1 is TAGGING + OBSERVABILITY ONLY. No enforcement is applied; `sovereigntyCheck()`
+ * in @forgeframe/server logs a warning when sensitive/local-only memories are bound
+ * for a frontier destination but does NOT block the call. Enforcement arrives with
+ * the Phase 4 routing work.
+ */
+export const SENSITIVITY_LEVELS = ['public', 'sensitive', 'local-only'] as const;
+export type Sensitivity = typeof SENSITIVITY_LEVELS[number];
+
 export const MEMORY_TYPE_STABILITY_MULTIPLIER: Record<string, number> = {
   semantic: 2.0,      // general knowledge decays slower
   episodic: 1.0,      // events decay at base rate
@@ -65,6 +80,7 @@ export interface Memory {
   readiness: number;
   valence: Valence;
   lastHindsightReview: number | null;
+  sensitivity: Sensitivity;
 }
 
 export interface MemoryCreateInput {
@@ -74,6 +90,7 @@ export interface MemoryCreateInput {
   tags?: string[];
   metadata?: Record<string, unknown>;
   valence?: Valence;
+  sensitivity?: Sensitivity;
 }
 
 export interface MemoryUpdateInput {
@@ -81,6 +98,7 @@ export interface MemoryUpdateInput {
   embedding?: number[];
   tags?: string[];
   metadata?: Record<string, unknown>;
+  sensitivity?: Sensitivity;
 }
 
 export interface MemoryQuery {

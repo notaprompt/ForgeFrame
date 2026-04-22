@@ -7,8 +7,8 @@
 
 import Database from 'better-sqlite3';
 import { randomUUID } from 'crypto';
-import type { Memory, MemoryCreateInput, MemoryUpdateInput, MemoryConfig, ReconsolidationOptions, Session, SessionCreateInput, SessionListOptions, DistilledArtifact, DistilledArtifactInput, MemoryEdge, EdgeCreateInput, ConsolidationCluster, ConsolidationProposal, ContradictionProposal, Valence } from './types.js';
-import { DEFAULT_CONFIG, TRIM_TAGS, CONSTITUTIONAL_TAGS, MEMORY_TYPE_STABILITY_MULTIPLIER } from './types.js';
+import type { Memory, MemoryCreateInput, MemoryUpdateInput, MemoryConfig, ReconsolidationOptions, Session, SessionCreateInput, SessionListOptions, DistilledArtifact, DistilledArtifactInput, MemoryEdge, EdgeCreateInput, ConsolidationCluster, ConsolidationProposal, ContradictionProposal, Valence, Sensitivity } from './types.js';
+import { DEFAULT_CONFIG, TRIM_TAGS, CONSTITUTIONAL_TAGS, MEMORY_TYPE_STABILITY_MULTIPLIER, SENSITIVITY_LEVELS } from './types.js';
 
 export class MemoryStore {
   private _db: Database.Database;
@@ -23,7 +23,7 @@ export class MemoryStore {
     this._init();
   }
 
-  private static readonly SCHEMA_VERSION = 10;
+  private static readonly SCHEMA_VERSION = 11;
 
   private static readonly MIGRATIONS: Record<number, string> = {
     1: `
@@ -166,6 +166,9 @@ export class MemoryStore {
     10: `
       ALTER TABLE memories ADD COLUMN last_hindsight_review INTEGER;
     `,
+    11: `
+      ALTER TABLE memories ADD COLUMN sensitivity TEXT NOT NULL DEFAULT 'public';
+    `,
   };
 
   private _init(): void {
@@ -192,10 +195,14 @@ export class MemoryStore {
     const tags = input.tags || [];
     const isConstitutional = tags.some(t => t === 'principle' || t === 'voice');
     const valence: Valence = isConstitutional ? 'grounding' : (input.valence ?? 'neutral');
+    const sensitivity: Sensitivity = input.sensitivity ?? 'public';
+    if (!SENSITIVITY_LEVELS.includes(sensitivity)) {
+      throw new Error(`Invalid sensitivity "${sensitivity}" — must be one of ${SENSITIVITY_LEVELS.join(', ')}`);
+    }
 
     this._db.prepare(`
-      INSERT INTO memories (id, content, embedding, strength, access_count, created_at, last_accessed_at, session_id, tags, metadata, valence)
-      VALUES (?, ?, ?, 1.0, 0, ?, ?, ?, ?, ?, ?)
+      INSERT INTO memories (id, content, embedding, strength, access_count, created_at, last_accessed_at, session_id, tags, metadata, valence, sensitivity)
+      VALUES (?, ?, ?, 1.0, 0, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       id,
       input.content,
@@ -206,6 +213,7 @@ export class MemoryStore {
       JSON.stringify(tags),
       JSON.stringify(input.metadata || {}),
       valence,
+      sensitivity,
     );
 
     return this.get(id)!;
@@ -234,6 +242,13 @@ export class MemoryStore {
     if (input.metadata !== undefined) {
       sets.push('metadata = ?');
       params.push(JSON.stringify(input.metadata));
+    }
+    if (input.sensitivity !== undefined) {
+      if (!SENSITIVITY_LEVELS.includes(input.sensitivity)) {
+        throw new Error(`Invalid sensitivity "${input.sensitivity}" — must be one of ${SENSITIVITY_LEVELS.join(', ')}`);
+      }
+      sets.push('sensitivity = ?');
+      params.push(input.sensitivity);
     }
 
     if (sets.length === 0) return existing;
@@ -1126,6 +1141,7 @@ export class MemoryStore {
       readiness: row.readiness ?? 0,
       valence: row.valence ?? 'neutral',
       lastHindsightReview: row.last_hindsight_review ?? null,
+      sensitivity: (row.sensitivity ?? 'public') as Sensitivity,
     };
   }
 
