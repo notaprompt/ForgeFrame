@@ -12,13 +12,13 @@ claude mcp add forgeframe-memory -- npx @forgeframe/server
 
 ## What's in the box
 
-**Memory.** SQLite + FTS5 with optional Ollama embeddings. Memories weaken over time unless accessed. Tag something `principle` and it never decays. Constitutional memory -- the system gets more opinionated about what matters, not less.
+**Memory.** SQLite + FTS5 with optional Ollama embeddings. Memories weaken over time unless accessed. Tag something `principle` and it never decays. Principle-tier memory -- the system gets more opinionated about what matters, not less.
 
 **Router.** Register any model -- Anthropic, OpenAI-compatible, Ollama, your own endpoint. Intent signals pick the tier automatically. Quick questions go cheap, deep analysis goes frontier. Override anytime.
 
 **Proxy.** Localhost PII scrubber. Three tiers: regex, dictionary, local LLM. Strips sensitive data before it leaves your machine. Rehydrates on return. You send the thought, not the identity.
 
-**Swarm.** Multi-agent orchestration in isolated git worktrees with shared memory. Builders write code. A skeptic stress-tests everything. Constitutional constraints keep them honest. Findings compound across runs.
+**Swarm.** Multi-agent orchestration in isolated git worktrees with shared memory. Builders write code. A skeptic stress-tests everything. Principle-based constraints keep them honest. Findings compound across runs.
 
 **Forge cockpit.** Terminal workspace manager. `forge` launches your session. `forge new` picks from recent projects. `forge 2` switches contexts. Auto-names tabs from model and project. ForgeFrame daemon in a side pane. One system.
 
