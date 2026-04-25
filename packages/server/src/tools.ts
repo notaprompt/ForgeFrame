@@ -16,6 +16,7 @@ import type { ProvenanceLogger } from './provenance.js';
 import type { ServerEvents } from './events.js';
 import type { ServerConfig } from './config.js';
 import { sovereigntyCheck } from './sovereignty.js';
+import { coerceArray, coerceInt, coerceNumber } from './zod-coerce.js';
 
 const startTime = Date.now();
 
@@ -148,7 +149,7 @@ export function registerTools(
     'Save a memory for later retrieval',
     {
       content: z.string().describe('The content to remember'),
-      tags: z.array(z.string()).optional().describe('Tags for categorization'),
+      tags: coerceArray(z.string()).optional().describe('Tags for categorization'),
       metadata: z.record(z.unknown()).optional().describe('Arbitrary metadata'),
       valence: z.enum(['charged', 'neutral', 'grounding']).optional()
         .describe('Emotional valence (auto-classified if omitted)'),
@@ -194,9 +195,9 @@ export function registerTools(
     'Search memories by query. Each result includes validity (1 = current, 0 = superseded by a newer memory) and neighbors (ids of up to 10 memories connected by any edge, strongest first).',
     {
       query: z.string().describe('Search query'),
-      limit: z.number().optional().describe('Max results (default 10)'),
-      tags: z.array(z.string()).optional().describe('Filter by tags'),
-      minStrength: z.number().optional().describe('Minimum memory strength (0-1)'),
+      limit: coerceInt().optional().describe('Max results (default 10)'),
+      tags: coerceArray(z.string()).optional().describe('Filter by tags'),
+      minStrength: coerceNumber().optional().describe('Minimum memory strength (0-1)'),
     },
     async ({ query, limit, tags, minStrength }) => {
       try {
@@ -251,7 +252,7 @@ export function registerTools(
     'memory_list_recent',
     'List most recent memories',
     {
-      limit: z.number().optional().describe('Number of memories to return (default 20)'),
+      limit: coerceInt().optional().describe('Number of memories to return (default 20)'),
     },
     async ({ limit }) => {
       try {
@@ -278,7 +279,7 @@ export function registerTools(
     {
       id: z.string().describe('Memory ID to update'),
       content: z.string().optional().describe('New content'),
-      tags: z.array(z.string()).optional().describe('New tags (replaces existing)'),
+      tags: coerceArray(z.string()).optional().describe('New tags (replaces existing)'),
       metadata: z.record(z.unknown()).optional().describe('New metadata (replaces existing)'),
     },
     async ({ id, content, tags, metadata }) => {
@@ -316,7 +317,7 @@ export function registerTools(
     'List memories filtered by tag',
     {
       tag: z.string().describe('Tag to filter by'),
-      limit: z.number().optional().describe('Max results (default 50)'),
+      limit: coerceInt().optional().describe('Max results (default 50)'),
     },
     async ({ tag, limit }) => {
       try {
@@ -465,7 +466,7 @@ export function registerTools(
     'List sessions with optional filtering',
     {
       status: z.enum(['active', 'ended', 'all']).optional().describe('Filter by session status (default: all)'),
-      limit: z.number().optional().describe('Max results (default 50)'),
+      limit: coerceInt().optional().describe('Max results (default 50)'),
     },
     async ({ status, limit }) => {
       try {
@@ -500,7 +501,7 @@ export function registerTools(
     'memory_reindex',
     'Backfill embeddings for memories that have none',
     {
-      limit: z.number().optional().describe('Max memories to reindex (default 100)'),
+      limit: coerceInt().optional().describe('Max memories to reindex (default 100)'),
     },
     async ({ limit }) => {
       try {
@@ -533,7 +534,7 @@ export function registerTools(
       sourceId: z.string().describe('Source memory ID'),
       targetId: z.string().describe('Target memory ID'),
       relationType: z.enum(['led-to', 'contradicts', 'supersedes', 'implements', 'similar', 'derived-from', 'related']).describe('Relationship type'),
-      weight: z.number().min(0).max(1).optional().describe('Edge weight (0-1)'),
+      weight: coerceNumber().pipe(z.number().min(0).max(1)).optional().describe('Edge weight (0-1)'),
     },
     async ({ sourceId, targetId, relationType, weight }) => {
       try {
@@ -551,7 +552,7 @@ export function registerTools(
     'Retrieve N-hop subgraph around a memory',
     {
       memoryId: z.string().describe('Center node memory ID'),
-      hops: z.number().int().min(1).max(5).optional().describe('Number of hops (default 2)'),
+      hops: coerceInt().pipe(z.number().int().min(1).max(5)).optional().describe('Number of hops (default 2)'),
     },
     async ({ memoryId, hops }) => {
       const subgraph = store.getSubgraph(memoryId, hops ?? 2);
@@ -720,13 +721,13 @@ export function registerTools(
     'memory_roadmap',
     'View the creature\'s memory state as 4 buckets: active (new), pending (settling), entrenched (stable), drifting (decaying).',
     {
-      activeWindowHours: z.number().optional()
+      activeWindowHours: coerceNumber().optional()
         .describe('Hours back to count as "active" (default 24)'),
-      entrenchedStrength: z.number().optional()
+      entrenchedStrength: coerceNumber().optional()
         .describe('Strength threshold for entrenched bucket (default 0.85)'),
-      driftingThreshold: z.number().optional()
+      driftingThreshold: coerceNumber().optional()
         .describe('driftScore threshold for drifting bucket (default 0.6)'),
-      maxPerBucket: z.number().optional()
+      maxPerBucket: coerceInt().optional()
         .describe('Max memories per bucket (default 25)'),
     },
     async ({ activeWindowHours, entrenchedStrength, driftingThreshold, maxPerBucket }) => {
