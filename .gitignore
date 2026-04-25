@@ -12,3 +12,4 @@ daemon.log
 .swarm-worktrees/
 .swarm-output.log
 .done-*
+.superpowers/
