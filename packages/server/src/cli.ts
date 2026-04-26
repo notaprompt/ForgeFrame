@@ -11,12 +11,16 @@
  *   forgeframe agent run "task" [--tier T] [--budget N] [--leash L]
  *   forgeframe agent stop                         Kill running agent
  *   forgeframe agent log                          Show recent agent runs
+ *   forgeframe loom reflect [--min-cluster-size N]
+ *   forgeframe loom status
+ *   forgeframe loom proposals [--limit N]
  */
 
 import { isDaemonRunning, stopDaemon, serveDaemon } from './daemon.js';
 import { runInit } from './init.js';
 import { runAgent, stopAgent, showAgentLog } from './agent-cli.js';
 import { generateToken, showToken, revokeToken } from './token.js';
+import { runLoomReflect, runLoomStatus, runLoomProposals } from './loom/cli.js';
 
 const args = process.argv.slice(2);
 const command = args[0];
@@ -155,6 +159,22 @@ async function main() {
         // Default: show if exists, generate if not
         const existing = showToken();
         if (!existing) generateToken();
+      }
+      break;
+    }
+
+    case 'loom': {
+      const sub = args[1];
+      const rest = args.slice(2);
+      if (sub === 'reflect') {
+        runLoomReflect(rest);
+      } else if (sub === 'status') {
+        runLoomStatus();
+      } else if (sub === 'proposals') {
+        runLoomProposals(rest);
+      } else {
+        process.stderr.write('Usage: forgeframe loom <reflect|status|proposals>\n');
+        process.exit(1);
       }
       break;
     }

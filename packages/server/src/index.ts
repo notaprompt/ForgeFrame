@@ -24,4 +24,5 @@ export { DistilleryIntake } from './distillery.js';
 export type { DistilleryConfig, SyncResult } from './distillery.js';
 export { LoraDataPrep, LoraTrainer, LoraValidator, LoraConverter, registerLoraTools } from './lora/index.js';
 export { catalogAll, catalogMemory, hasMemorandum } from './catalog.js';
+export { LOOM_ORGAN_MANIFEST, createLoomOrganLifecycle } from './loom/index.js';
 // OllamaOrganAdapter — re-exported once ollama-organ.ts lands (dynamic import in server.ts)
