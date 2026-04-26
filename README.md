@@ -110,4 +110,41 @@ The memory is yours. The infrastructure that protects it is copyleft.
 
 ---
 
+## Loom — meta-organ for dispatch governance
+
+Loom is the substrate's proprioception over its own dispatches. Every Agent and Bash tool call from a Claude Code session is observed by a sensor hook that writes a `dispatch:*` memory row. A reflector (run via `forgeframe loom reflect` or NREM dream cycle) clusters these into `routing-principle:proposed` rows for founder review. Approved principles drive a router hook that can pass-through, allow, or deny future dispatches.
+
+### Cold-start protocol — 7-day pass-through
+
+The router runs in **observe-only mode for the first 7 days** after the sensor first fires. During this window:
+
+- the sensor writes dispatches with the `dispatch:cold-start` tag for audit,
+- the router never blocks or auto-approves anything regardless of which policies exist,
+- the reflector still runs so founder gets a backlog of proposals ready for review on day 8.
+
+If you see "router pass-through" behavior in the first week, that's intentional. Check status:
+
+```
+forgeframe loom status
+```
+
+After 7 days, the router arms automatically and starts honoring approved `routing-principle:approved` rows.
+
+### Disabling Loom for a session
+
+Set `LOOM_DISABLE=1` in your shell environment before starting Claude Code. Both hook wrappers exit early on this flag.
+
+### Hook locations
+
+- `~/.claude/hooks/loom-sensor.sh` — PostToolUse (`Agent|Bash`, async)
+- `~/.claude/hooks/loom-router.sh` — PreToolUse (`Agent|Bash`, sync, 2s hard timeout)
+
+### CLI
+
+- `forgeframe loom status` — show cold-start state and remaining window
+- `forgeframe loom reflect [--min-cluster-size N]` — run the clustering pass
+- `forgeframe loom proposals [--limit N]` — list pending `routing-principle:proposed` rows
+
+---
+
 *Nothing invented. Everything reframed.*
